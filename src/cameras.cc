@@ -52,6 +52,10 @@ bool ReadColmapCameras(const std::string& cameras_txt_path,
       new_camera->parameters.emplace_back();
       line_stream >> new_camera->parameters.back();
     }
+
+    new_camera->intrinsic << new_camera->parameters[0],0,new_camera->parameters[2],
+                            0,new_camera->parameters[1], new_camera->parameters[3],
+                            0,0,1;
     
     cameras->insert(std::make_pair(new_camera->camera_id,
                                    ColmapCameraPtr(new_camera)));

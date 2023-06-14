@@ -25,7 +25,7 @@
 // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
-
+#pragma once
 #include <cstring>
 #include <memory>
 #include <unordered_map>
@@ -52,6 +52,8 @@ struct ColmapCamera {
   // Distortion parameters. Their number and interpretation depends on the
   // distortion model.
   std::vector<double> parameters;
+
+  Eigen::Matrix3d intrinsic;
 };
 
 typedef std::shared_ptr<ColmapCamera> ColmapCameraPtr;
