@@ -43,19 +43,15 @@ int removeElements(std::vector<T> &vec, const std::vector<int> &mask)
     for (auto m : mask)
     {
         if (m)
-        {
             ++it;
-        }
         else
-        {
             it = vec.erase(it);
-            ++num;
-        }
+        ++num;
     }
     return num;
 }
 
-void saveRes(const eval &evals, string dataset_name)
+void saveRes(const eval &evals, std::string dataset_name)
 {
     auto now = std::chrono::system_clock::now();
     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
@@ -64,7 +60,7 @@ void saveRes(const eval &evals, string dataset_name)
     std::stringstream ss;
     ss << std::put_time(std::localtime(&now_c), "%m-%d_%H-%M");
     std::string time_str = ss.str();
-
+    
     std::string dir_name = time_str;
     fs::create_directory(dir_name);
 
@@ -77,4 +73,28 @@ void saveRes(const eval &evals, string dataset_name)
         file << i << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << endl;
     }
     file.close();
+}
+
+void printProg(int now, int total)
+{
+    int progress = now * 40 / total;
+
+    if (now == total)
+    {
+        std::cout << "\r[";
+        for (int j = 0; j < 40; ++j)
+        {
+            std::cout << "=";
+        }
+        std::cout << "] 100%" << std::endl;
+    }
+    else
+    {
+        std::cout << "\r[";
+        for (int j = 0; j < progress; ++j)
+            std::cout << "=";
+        for (int j = progress; j < 40; ++j)
+            std::cout << " ";
+        std::cout << "] " << std::fixed << std::setprecision(2) << (double)now * 100.0 / total << "%" << std::flush;
+    }
 }

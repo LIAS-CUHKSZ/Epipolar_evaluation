@@ -61,7 +61,10 @@ int main(int argc, char **argv)
 	if (success)
 		std::cout << "Successfully loaded " << cameras.size() << " camera(s)." << std::endl;
 	else
-		std::cout << "Error: could not load cameras." << std::endl;
+	{
+		std::cout << "Error: could not load cameras.Exit" << std::endl;
+		return EXIT_FAILURE;
+	}
 
 	// Load images (indexed by: image_id).
 	ColmapImagePtrMap images;
@@ -69,20 +72,27 @@ int main(int argc, char **argv)
 	if (success)
 		std::cout << "Successfully loaded " << images.size() << " image info(s)." << std::endl;
 	else
-		std::cout << "Error: could not load image infos." << std::endl;
+	{
+		std::cout << "Error: could not load image info.Exit" << std::endl;
+		return EXIT_FAILURE;
+	}
+	std::cout << "[" << dtset << "]eval on going, please wait..." << endl;
 
 	// accumulate the error
-	eval c_est("c_est"), e_m_gn("e_m_gn"), sdp("sdp"), pt5ransac("pt5ransac"), pt7ransac("pt7ransac");
+	eval c_est("c_est"),
+		e_m_gn("e_m_gn"), sdp("sdp"), pt5ransac("pt5ransac"), pt7ransac("pt7ransac");
 	int valid_round = 0; // the number of valid pairs, only when the number of covisible points is larger than 20, the pair is valid
+	int progress = images.size() * 7 - 28, tmp_finish = 0;
 
-	for (int img1 = 1; img1 < images.size(); ++img1)
+	for (int img1 = 1; img1 < progress; ++img1)
 	{
 		// find the covisible points
 		// surfix _pix means homogeneous coord in pixel plane, _n means normalized coordinates
 		vector<Vector3d> y_pix, z_pix, y_n, z_n;
 		vector<Point2d> y_cv_pix, z_cv_pix;
-		for (int img2 = img1 + 1; img2 <= img1 + 7 && img2 <= images.size(); ++img2)
+		for (int img2 = img1 + 1; img2 <= img1 + 7 && img2 <= images.size(); ++img2, ++tmp_finish)
 		{
+			printProg(tmp_finish, progress);
 			if (img1 == img2 || images[img1]->camera_id != images[img2]->camera_id) // only consider imgs with the same camera for convenience
 				continue;
 
@@ -196,16 +206,17 @@ int main(int argc, char **argv)
 			t_err_this_round = abs(t_estimated.dot(t_gt));
 			calcEval(pt7ransac, img1, img2, t_err_this_round, r_err_this_round, inlier_num);
 			/* ↑↑↑↑↑↑↑↑↑↑↑↑-- RANSAC method--↑↑↑↑↑↑↑↑↑↑↑↑ */
-			std::cout << "round: " << valid_round << endl;
-			// ------------------------------ save results here-----------------------------------
+			// std::cout << "round: " << valid_round << endl;
 		}
 	}
-	std::cout << "----------------------------------" << endl;
+
+	// ------------------------------------ save results here----------------------------------------
 	std::cout << "[c_est] R:" << c_est.total_R_Fn << " t: " << c_est.total_t_cos << endl;
 	// std::cout << "[sdp] R:" << c_est.total_R_Fn << " t: " << c_est.total_t_cos << endl;
 	std::cout << "[e_m_gn] R:" << e_m_gn.total_R_Fn << " t: " << e_m_gn.total_t_cos << endl;
 	std::cout << "[pt5ransac] R:" << pt5ransac.total_R_Fn << " t: " << pt5ransac.total_t_cos << endl;
 	std::cout << "[pt7ransac] R:" << pt7ransac.total_R_Fn << " t: " << pt7ransac.total_t_cos << endl;
+	std::cout << "--------------------------------------" << endl;
 
 	saveRes(c_est, dtset);
 	// saveRes(sdp, dtset);
