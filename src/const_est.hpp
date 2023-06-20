@@ -35,7 +35,7 @@ public:
     Vector3d e1, e2, e3;    // basis of R^3
 
 private:
-    void BiasElimination(vector<Vector3d> &y_h, vector<Vector3d> &z_h)
+    void BiasElimination(vector<Vector3d> &y_h, vector<Vector3d> &z_h,vector<Point2d> y_p,vector<Point2d> z_p)
     {
         /* --------------------get statistics-------------------- */
         MatrixXd A(m, 9);
@@ -75,7 +75,7 @@ private:
             z_h_cv.push_back(Point2d(z_h[i](0), z_h[i](1)));
         }
         // @todo may be undistortPoints are needed, or the dataset is already undistorted?
-        recoverPose(essential, y_h_cv, z_h_cv, intrinsic_cv, R_cv, t_cv);
+        recoverPose(essential, y_p, z_p, intrinsic_cv, R_cv, t_cv);
         cv2eigen(R_cv, R_svd);
         cv2eigen(t_cv, t_svd); // @todo to determine sign of t
     };
@@ -167,11 +167,11 @@ public:
      * @param y_h
      * @param z_h
      */
-    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h)
+    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h,vector<Point2d> &ypix, vector<Point2d> &zpix)
     {
         m = y_h.size();
 
-        BiasElimination(y_h, z_h);
+        BiasElimination(y_h, z_h,ypix,zpix);
 
         ManifoldGN(y_h, z_h);
 

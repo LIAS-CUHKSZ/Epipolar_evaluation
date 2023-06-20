@@ -73,14 +73,16 @@ bool ReadColmapImages(const std::string &images_txt_path,
 
 		// Read feature observations line.
 		std::getline(images_file_stream, line);
+		new_image->observations.reserve(3000); // prevent reallocations
 		if (read_observations)
 		{
 			std::istringstream observations_stream(line);
 			while (!observations_stream.eof() && !observations_stream.bad())
 			{
 				int pt3d_idx;
-				Eigen::Vector2f pt2d;
+				Eigen::Vector3d pt2d;
 				observations_stream >> pt2d.x() >> pt2d.y() >> pt3d_idx;
+				pt2d.z() = 1.0;
 				if (pt3d_idx != -1) // if there exists a corresponding point
 				{
 					new_image->observations[pt3d_idx].pixel = pt2d;

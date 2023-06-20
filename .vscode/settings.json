@@ -72,6 +72,18 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "cfenv": "cpp",
-        "codecvt": "cpp"
+        "codecvt": "cpp",
+        "ios": "cpp",
+        "xfacet": "cpp",
+        "xhash": "cpp",
+        "xiosbase": "cpp",
+        "xlocale": "cpp",
+        "xlocinfo": "cpp",
+        "xlocnum": "cpp",
+        "xmemory": "cpp",
+        "xstddef": "cpp",
+        "xstring": "cpp",
+        "xutility": "cpp",
+        "filesystem": "cpp"
     }
 }

@@ -46,8 +46,8 @@ typedef Eigen::Transform<float, 3, Eigen::Affine> SE3f;
 
 struct point_pair
 {
-  Eigen::Vector2f pixel;
-  Eigen::Vector2f normalized;
+  Eigen::Vector3d pixel;
+  Eigen::Vector3d normalized;
 };
 
 // Holds data of a COLMAP image.

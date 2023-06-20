@@ -15,7 +15,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-add_definitions("-O2 -msse2 -msse3 -std=c++11")
+add_definitions("-O3 -msse2 -msse3 -std=c++17")
 include_directories(
     ./src
 )
@@ -26,7 +26,6 @@ add_executable(ETH3DFormatLoader
     src/images.cc
     src/main.cc
     src/pt3d.hpp
-    src/evaluate.hpp
     src/const_est.hpp
     src/manifold_GN.hpp
     src/utils.hpp

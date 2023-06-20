@@ -10,9 +10,7 @@
             "request": "launch",
             "program": "D:\\Desktop\\epipolar_eval\\build\\ETH3DFormatLoader.exe",
             "args": [
-                "..\\delivery_area\\dslr_calibration_undistorted\\cameras.txt ",
-                "..\\delivery_area\\dslr_calibration_undistorted\\images.txt ",
-                // "..\\delivery_area\\dslr_calibration_undistorted\\points3D.txt"
+                "kicker"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
