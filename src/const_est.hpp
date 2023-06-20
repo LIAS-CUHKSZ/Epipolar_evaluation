@@ -25,6 +25,7 @@ public:
     Matrix3d R_svd, R_GN;
     Vector3d t_svd, t_GN;
     int m; // number of correspondences
+    double var_est;
 
     Matrix3d Ess_svd, Ess_GN;
 
@@ -51,7 +52,7 @@ private:
         Matrix<double, 9, 9> S_m = kron(Y_bar, W_h).eval();
 
         EigenSolver<Matrix<double, 9, 9>> es(Q_m.inverse() * S_m);
-        double var_est = 1 / es.eigenvalues().real().maxCoeff();
+        var_est = 1 / es.eigenvalues().real().maxCoeff();
 
         /* --------------------svd to get essential-------------------- */
         Matrix<double, 9, 9> Q_BE = Q_m - var_est * S_m;
@@ -139,7 +140,7 @@ private:
         Vector<double, 5> res = init + (J.transpose() * J).inverse() * J.transpose() * (z - z_pred);
         Matrix3d lie;
         lie << 0, -res(2), res(1), res(2), 0, -res(0), -res(1), res(0), 0;
-        R_GN = R_svd * lie.exp();
+        R_GN = R_svd * lie.exp().eval();
         t_GN = {cos(res(4)) * cos(res(3)), cos(res(4)) * sin(res(3)), sin(res(4))};
         t_GN.normalize();
 

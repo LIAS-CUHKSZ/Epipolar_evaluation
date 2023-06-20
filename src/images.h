@@ -44,6 +44,12 @@
 // it in principle).
 typedef Eigen::Transform<float, 3, Eigen::Affine> SE3f;
 
+struct point_pair
+{
+  Eigen::Vector2f pixel;
+  Eigen::Vector2f normalized;
+};
+
 // Holds data of a COLMAP image.
 struct ColmapImage
 {
@@ -63,7 +69,7 @@ struct ColmapImage
   SE3f global_T_image;
 
   // 2D feature observations in this image.
-  std::unordered_map<int, Eigen::Vector2f> observations;
+  std::unordered_map<int, point_pair> observations;
 };
 
 typedef std::shared_ptr<ColmapImage> ColmapImagePtr;

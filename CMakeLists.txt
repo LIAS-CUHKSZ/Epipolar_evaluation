@@ -28,6 +28,8 @@ add_executable(ETH3DFormatLoader
     src/pt3d.hpp
     src/evaluate.hpp
     src/const_est.hpp
+    src/manifold_GN.hpp
+    src/utils.hpp
 )
 
 target_link_libraries(ETH3DFormatLoader ${OpenCV_LIBS} )

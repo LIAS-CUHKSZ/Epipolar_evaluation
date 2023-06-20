@@ -83,10 +83,11 @@ bool ReadColmapImages(const std::string &images_txt_path,
 				observations_stream >> pt2d.x() >> pt2d.y() >> pt3d_idx;
 				if (pt3d_idx != -1) // if there exists a corresponding point
 				{
+					new_image->observations[pt3d_idx].pixel = pt2d;
 					// transform pixel coordinates to image normalized coordinates
 					pt2d.x() = (pt2d.x() - du) / cameras[new_image->camera_id]->parameters[0];
 					pt2d.y() = (pt2d.y() - dv) / cameras[new_image->camera_id]->parameters[1];
-					new_image->observations[pt3d_idx] = pt2d;
+					new_image->observations[pt3d_idx].normalized = pt2d;
 				}
 			}
 		}

@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "D:\\Desktop\\format-loader\\build\\ETH3DFormatLoader.exe",
+            "program": "D:\\Desktop\\epipolar_eval\\build\\ETH3DFormatLoader.exe",
             "args": [
                 "..\\delivery_area\\dslr_calibration_undistorted\\cameras.txt ",
                 "..\\delivery_area\\dslr_calibration_undistorted\\images.txt ",
