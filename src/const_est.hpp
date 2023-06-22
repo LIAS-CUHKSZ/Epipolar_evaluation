@@ -35,7 +35,7 @@ public:
     Vector3d e1, e2, e3;    // basis of R^3
 
 private:
-    void BiasElimination(vector<Vector3d> &y_h, vector<Vector3d> &z_h,vector<Point2d> y_p,vector<Point2d> z_p)
+    void BiasElimination(vector<Vector3d> &y_h, vector<Vector3d> &z_h,vector<Point2d> y_p_cv,vector<Point2d> z_p_cv)
     {
         /* --------------------get statistics-------------------- */
         MatrixXd A(m, 9);
@@ -67,15 +67,7 @@ private:
         cv::Mat essential, intrinsic_cv, R_cv, t_cv; // for conversion
         eigen2cv(Ess_svd, essential);
         eigen2cv(intrinsic, intrinsic_cv);
-        // transform homo coord to cv::Point2d
-        vector<Point2d> y_h_cv, z_h_cv;
-        for (auto i = 0; i < m; i++)
-        {
-            y_h_cv.push_back(Point2d(y_h[i](0), y_h[i](1)));
-            z_h_cv.push_back(Point2d(z_h[i](0), z_h[i](1)));
-        }
-        // @todo may be undistortPoints are needed, or the dataset is already undistorted?
-        recoverPose(essential, y_p, z_p, intrinsic_cv, R_cv, t_cv);
+        recoverPose(essential, y_p_cv, z_p_cv, intrinsic_cv, R_cv, t_cv);
         cv2eigen(R_cv, R_svd);
         cv2eigen(t_cv, t_svd); // @todo to determine sign of t
     };

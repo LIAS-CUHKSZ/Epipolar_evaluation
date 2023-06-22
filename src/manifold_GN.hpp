@@ -32,19 +32,12 @@ public:
 public:
     ManifoldGN(Matrix3d intrinsic_) : intrinsic(intrinsic_){};
 
-    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h,vector<Vector3d> ynn,vector<Vector3d>znn,Matrix3d E_out = Matrix3d::Zero())
+    void GetPose(Matrix3d &R, Vector3d &t, vector<Point2d> &y_h_cv, vector<Point2d> &z_h_cv,vector<Vector3d> ynn,vector<Vector3d>znn,Matrix3d E_out = Matrix3d::Zero())
     {
         E_init = E_out;
-
         // convert vector3d to point3d type for OpenCV
-        m = y_h.size();
-        vector<Point2d> y_h_cv, z_h_cv;
+        m = y_h_cv.size();
         Mat intri_cv;
-        for (int i = 0; i < y_h.size(); i++)
-        {
-            y_h_cv.push_back(Point2d(y_h[i](0), y_h[i](1)));
-            z_h_cv.push_back(Point2d(z_h[i](0), z_h[i](1)));
-        }
         eigen2cv(intrinsic, intri_cv);
         
         Mat es_cv, R_cv, t_cv;

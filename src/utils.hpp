@@ -8,6 +8,16 @@
 #include <string>
 #include <filesystem>
 
+#define TIME_IT(code)                                                                                 \
+    [&]() -> long long                                                                                \
+    {                                                                                                 \
+        auto start_time = std::chrono::high_resolution_clock::now();                                  \
+        code;                                                                                         \
+        auto end_time = std::chrono::high_resolution_clock::now();                                    \
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time); \
+        return duration.count();                                                                      \
+    }()
+
 namespace fs = std::filesystem;
 
 struct eval
@@ -20,10 +30,12 @@ struct eval
     double total_t_cos;
     std::vector<double> noise;
     std::vector<std::pair<int, int>> img_pair;
+    std::vector<double> time;
+    double average_time;
     eval(std::string name) : method_name(name), total_R_Fn(0), total_t_cos(0) {}
 };
 
-void calcEval(eval &Method, int img_idx1, int img_idx2, double t_err, double r_err, int num, double noise = -1)
+void calcEval(eval &Method, int img_idx1, int img_idx2, double t_err, double r_err, int num, double time_cost, double noise = -1)
 {
     Method.img_pair.push_back(std::make_pair(img_idx1, img_idx2));
     Method.t_err_per_round.push_back(1 - t_err);
@@ -33,6 +45,8 @@ void calcEval(eval &Method, int img_idx1, int img_idx2, double t_err, double r_e
     if (noise != -1)
         Method.noise.push_back(noise);
     Method.num_pts.push_back(num);
+    Method.time.push_back(time_cost);
+    Method.average_time += time_cost;
 }
 
 template <typename T>
@@ -51,26 +65,31 @@ int removeElements(std::vector<T> &vec, const std::vector<int> &mask)
     return num;
 }
 
-void saveRes(const eval &evals, std::string dataset_name)
+string getTimeDir(std::string dataset_name)
 {
     auto now = std::chrono::system_clock::now();
     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
 
     // Convert current time to string
     std::stringstream ss;
-    ss << std::put_time(std::localtime(&now_c), "%m-%d_%H-%M");
+    ss << std::put_time(std::localtime(&now_c), "%m%d-%H%M");
     std::string time_str = ss.str();
-    
-    std::string dir_name = time_str;
-    fs::create_directory(dir_name);
 
+    std::string dir_name = time_str + "_" + dataset_name;
+    fs::create_directory(dir_name);
+    return dir_name;
+}
+
+void saveRes(eval &evals, std::string time_dir)
+{
     // Construct filename with current time
-    std::string csvname = dir_name + "/" + dataset_name + "_" + evals.method_name + ".csv";
+    std::string csvname = time_dir + "/" + evals.method_name + ".csv";
     std::ofstream file(csvname);
-    file << "idx,img1_idx,img2_idx,num_pts,t_err,R_err\n";
+    file << "idx,img1_idx,img2_idx,num_pts,time,t_err,R_err\n";
+    evals.average_time /= evals.time.size();
     for (int i = 0; i < evals.R_err_per_round.size(); ++i)
     {
-        file << i << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << endl;
+        file << i << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << endl;
     }
     file.close();
 }
@@ -87,6 +106,8 @@ void printProg(int now, int total)
             std::cout << "=";
         }
         std::cout << "] 100%" << std::endl;
+        std::cout << "\n"
+                  << std::flush << std::endl;
     }
     else
     {
@@ -95,6 +116,6 @@ void printProg(int now, int total)
             std::cout << "=";
         for (int j = progress; j < 40; ++j)
             std::cout << " ";
-        std::cout << "] " << std::fixed << std::setprecision(2) << (double)now * 100.0 / total << "%" << std::flush;
+        std::cout << "] " << now * 100.0 / total << "%" << std::flush;
     }
 }
