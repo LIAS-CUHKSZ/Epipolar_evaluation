@@ -35,7 +35,7 @@ public:
     Vector3d e1, e2, e3;    // basis of R^3
 
 private:
-    void BiasElimination(vector<Vector3d> &y_h, vector<Vector3d> &z_h,vector<Point2d> y_p_cv,vector<Point2d> z_p_cv)
+    void BiasElimination(vector<Vector3d> &y_h, vector<Vector3d> &z_h, vector<Point2d> y_p_cv, vector<Point2d> z_p_cv)
     {
         /* --------------------get statistics-------------------- */
         MatrixXd A(m, 9);
@@ -159,11 +159,11 @@ public:
      * @param y_h
      * @param z_h
      */
-    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h,vector<Point2d> &ypix, vector<Point2d> &zpix)
+    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h, vector<Point2d> &ypix, vector<Point2d> &zpix)
     {
         m = y_h.size();
 
-        BiasElimination(y_h, z_h,ypix,zpix);
+        BiasElimination(y_h, z_h, ypix, zpix);
 
         ManifoldGN(y_h, z_h);
 

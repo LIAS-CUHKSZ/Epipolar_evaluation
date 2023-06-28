@@ -1,16 +1,23 @@
-$windows_size = 2
+$windows_size = $args[0]
 
 $dataset_path = "dataset"
 
 # Get a list of all subdirectories in the dataset folder
-$subdirs = Get-ChildItem -Path $dataset_path -Directory
+# $subdirs = Get-ChildItem -Path $dataset_path -Directory
+
+# only consider high res img
+$subdirs = Get-ChildItem $dataset_path | Where-Object { $_.PSIsContainer -and $_.Name -notlike "zlr*" }
+
+echo ($subdirs | Measure-Object).Count
 cd build
 # Loop through each subdirectory and run your program with the subdirectory name as an argument
 foreach ($subdir in $subdirs)
 {
     $subdir_name = $subdir.Name
-    Start-Process powershell.exe -ArgumentList "-Command", ".\ETH3DFormatLoader.exe $subdir_name $windows_size"
+    Start-Process powershell.exe -ArgumentList "-Command", ".\epipolar_eval.exe $subdir_name $windows_size"
+    Start-Sleep -Seconds 1.2
 }
+cd ..
 
 # cd build
 # .\ETH3DFormatLoader.exe facade

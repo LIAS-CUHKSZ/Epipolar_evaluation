@@ -1,8 +1,8 @@
-project(ETH3DFormatLoader)
+project(EPP)
 cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 find_package(Eigen3  REQUIRED)
 find_package(OpenCV  REQUIRED)
@@ -21,18 +21,18 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_definitions("-O3 -msse2 -msse3 -march=native -std=c++17")
-set( CMAKE_CXX_FLAGS "-march=native -Og -fopenmp" )
+set( CMAKE_CXX_FLAGS "-march=native -fopenmp" )
 include_directories(
     ./src
 )
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -funroll-all-loops")
-set(CMAKE_Fortran_FLAGS "-g -O2 -Wall -fPIC -funroll-all-loops")
+set(CMAKE_Fortran_FLAGS "-Wall -fPIC -funroll-all-loops")
 
 # Executable.
-add_executable(ETH3DFormatLoader
+add_executable(epipolar_eval
     src/cameras.cc
     src/images.cc
-    src/main.cc
+    src/eval.cc
     src/pt3d.hpp
     src/const_est.hpp
     src/manifold_GN.hpp
@@ -42,4 +42,17 @@ add_executable(ETH3DFormatLoader
     src/construct_coeff_objective.cpp
 )
 
-target_link_libraries(ETH3DFormatLoader ${OpenCV_LIBS} ${SDPA_LIBRARIES} )
+target_link_libraries(epipolar_eval ${OpenCV_LIBS} ${SDPA_LIBRARIES} )
+
+# m-consistent evaluation 
+add_executable(MonteCarlo src/m_pts_eval.cc
+src/cameras.cc
+    src/images.cc
+    src/pt3d.hpp
+    src/const_est.hpp
+    src/manifold_GN.hpp
+    src/utils.hpp
+    src/npt_pose.cpp
+    src/construct_coeff_constraint.cpp
+    src/construct_coeff_objective.cpp)
+  target_link_libraries(MonteCarlo ${OpenCV_LIBS} ${SDPA_LIBRARIES} )
