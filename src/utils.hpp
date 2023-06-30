@@ -1,3 +1,4 @@
+#pragma once
 #include <vector>
 #include <algorithm>
 #include <chrono>
@@ -30,7 +31,7 @@ struct eval
     std::string method_name;
     std::vector<double> t_err_per_round;
     std::vector<double> R_err_per_round;
-    std::vector<Eigen::Vector3d> t_gt;
+    std::vector<double> t_gt_norm;
     std::vector<Eigen::Vector3d> R_gt;
     std::vector<int> num_pts;
     double total_R_Fn;
@@ -55,7 +56,7 @@ void calcEval(Eigen::Vector3d rgt, Eigen::Vector3d tgt, eval &Method, string img
     Method.time.push_back(time_cost);
     Method.average_time += time_cost;
     Method.R_gt.push_back(rgt);
-    Method.t_gt.push_back(tgt);
+    Method.t_gt_norm.push_back(tgt.norm());
 }
 
 template <typename T>
@@ -94,11 +95,11 @@ void saveRes(eval &evals, std::string time_dir)
     // Construct filename with current time
     std::string csvname = time_dir + "/" + evals.method_name + ".csv";
     std::ofstream file(csvname);
-    file << "idx,  img1_idx,  img2_idx,  num_pts,  time,  t_err,  R_err, tgt, rgt\n";
+    file << "idx,  img1_idx,  img2_idx,  num_pts,  time,  t_err,  R_err, T_GTnorm, rgt_lie\n";
     evals.average_time /= evals.time.size();
     for (int i = 0; i < evals.R_err_per_round.size(); ++i)
     {
-        file << i << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << "," << evals.t_gt[i].transpose() << "," << evals.R_gt[i].transpose() << std::endl;
+        file << i + 1 << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << "," << evals.t_gt_norm[i] << "," << evals.R_gt[i].transpose() << std::endl;
     }
     file.close();
 }

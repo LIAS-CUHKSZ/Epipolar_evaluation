@@ -8,9 +8,9 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "D:\\Desktop\\epipolar_eval\\build\\ETH3DFormatLoader.exe",
+            "program": "D:\\Desktop\\epipolar_eval\\build\\epipolar_eval.exe",
             "args": [
-                "kicker"
+                "kicker","2"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

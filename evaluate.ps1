@@ -14,8 +14,9 @@ cd build
 foreach ($subdir in $subdirs)
 {
     $subdir_name = $subdir.Name
-    Start-Process powershell.exe -ArgumentList "-Command", ".\epipolar_eval.exe $subdir_name $windows_size"
-    Start-Sleep -Seconds 1.2
+    Start-Process powershell.exe -ArgumentList "-Command", ".\epipolar_eval.exe $subdir_name $windows_size 1"
+    Start-Sleep -Seconds 6
+    # .\epipolar_eval.exe $subdir_name $windows_size
 }
 cd ..
 
