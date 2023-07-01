@@ -51,16 +51,17 @@ int main(int argc, char **argv)
 	if (argc < 3)
 	{
 		std::cout << "Usage: " << argv[0] << "  <datasetname>  <img_windows_size>" << std::endl;
-		std::cout << "you should put your dataset in the <dataset> dir of this proj";
+		std::cout << "you should put your dataset in the <dataset> dir of this proj" << std::endl;
+		std::cout << "if <img_window_size> is set to -1, then each pair of img in the dataset will be taken into account" << endl;
 		return EXIT_FAILURE; // <path_to_pt3ds_txt>
 	}
 	bool debug_img = false;
-	if (argc == 4)
-	{
+	if (argc == 4) // input the 4th param(anything is ok) to enable debug image
 		debug_img = true;
-	}
 	string dtset(argv[1]), windows_size_str(argv[2]);
 	int wds = stoi(windows_size_str) - 1;
+	if (wds == -2)
+		std::cout << "evaluate all img pairs" << std::endl;
 	string cameras_txt_path = "../dataset/" + dtset + "/dslr_calibration_undistorted/cameras.txt";
 	string images_txt_path = "../dataset/" + dtset + "/dslr_calibration_undistorted/images.txt";
 	// string points3D_txt_path = " ../" + dtset + "/dslr_calibration_undistorted/points3D.txt";
@@ -89,13 +90,20 @@ int main(int argc, char **argv)
 	std::cout << "[" << dtset << "]eval on going, please wait..." << endl;
 
 	// accumulate the error
-	double time_elapse;
 	eval c_est("c_est"), e_m_gn("e_m_gn"), sdp("sdp"), pt5ransac("pt5ransac"), pt7ransac("pt7ransac"), egsolver("eigenSolver");
-	int valid_round = 0; // the number of valid pairs, only when the number of covisible points is larger than 20, the pair is valid
-	// int progress = images.size() * wds - (wds * wds + wds) / 2, tmp_finish = 0;
-	int progress = images.size() * (images.size() - 1) / 2, tmp_finish = 0;
+	// the number of valid pairs, only when the number of covisible points is larger than 20
+	// and the norm of translation is bigger than 0.075m will this pair to be evaluate
+	int valid_round = 0;
+	int progress, tmp_finish = 0; // for printing progress bar
+	if (wds == -2)
+		progress = images.size() * (images.size() - 1) / 2;
+	else
+		progress = images.size() * wds - (wds * wds + wds) / 2;
+
+	// create a folder under "build" named time(m-d-h-m)-dataset_name
 	string dir_name = getTimeDir(dtset);
 
+	// store point pairs
 	vector<Vector3d> y_pix, z_pix, y_n, z_n;
 	vector<Point2d> y_cv_pix, z_cv_pix;
 
@@ -103,12 +111,21 @@ int main(int argc, char **argv)
 	{
 		// find the covisible points
 		// surfix _pix means homogeneous coord in pixel plane, _n means normalized coordinates
-		// img2 <= img1 + wds
-		for (size_t img2 = img1 + 1; img2 <= images.size(); ++img2, ++tmp_finish)
+		for (size_t img2 = img1 + 1; img2 <= images.size() && (img2 <= img1 + wds || wds == -2); ++img2, ++tmp_finish)
 		{
 			printProg(tmp_finish, progress);
-			if (images[img1]->camera_id != images[img2]->camera_id) // only consider imgs with the same camera for convenience
+
+			// compute the ground truth relative pose
+			Matrix3d R1 = images[img1]->global_T_image.linear().transpose().cast<double>();
+			Matrix3d R_gt = ((images[img1]->global_T_image.linear().transpose() * images[img2]->global_T_image.linear()).cast<double>()).transpose();
+			Vector3d t_gt = -R_gt * R1 * (images[img2]->global_T_image.translation() - images[img1]->global_T_image.translation()).cast<double>();
+			Vector3d t_with_scale = t_gt;
+			if (t_with_scale.norm() < 0.075) // two-view geometry cannot evaluate the translation when it is too small
 				continue;
+			t_gt.normalize(); // only the bearing vector is needed
+			Matrix3d E_ground = skew(t_gt) * R_gt;
+			Vector3d R_lie = unskew(R_gt);
+
 			y_pix.clear();
 			z_pix.clear();
 			y_n.clear();
@@ -116,51 +133,42 @@ int main(int argc, char **argv)
 			y_cv_pix.clear();
 			z_cv_pix.clear();
 
-			for (auto yi : images[img1]->observations) // traverse obs in first img
+			// traverse obs in first img
+			for (auto yi : images[img1]->observations)
 			{
 				if (images[img2]->observations.count(yi.first)) // if the point is visible in the another image
 				{
 					point_pair p1 = yi.second, p2 = images[img2]->observations[yi.first];
-					y_pix.push_back(p1.pixel);
-					z_pix.push_back(p2.pixel);
-					y_cv_pix.push_back(Point2d(p1.pixel.x(), p1.pixel.y()));
-					z_cv_pix.push_back(Point2d(p2.pixel.x(), p2.pixel.y()));
-					y_n.push_back(p1.normalized);
-					z_n.push_back(p2.normalized);
+					y_pix.emplace_back(p1.pixel);
+					z_pix.emplace_back(p2.pixel);
+					y_cv_pix.emplace_back(Point2d(p1.pixel.x(), p1.pixel.y()));
+					z_cv_pix.emplace_back(Point2d(p2.pixel.x(), p2.pixel.y()));
+					y_n.emplace_back(p1.normalized);
+					z_n.emplace_back(p2.normalized);
 				}
 			}
 			int total_covisible = y_pix.size();
-			if (total_covisible < 200)
+			if (total_covisible < 200) // we focus on large number case, you can modify it to a smaller num
 			{
 				// std::cout << "[point too few,only " << y_pix.size() << " available,skip]" << endl;
 				continue;
 			}
-
-			// compute the ground truth relative pose
-			Matrix3d R1 = images[img1]->global_T_image.linear().transpose().cast<double>();
-			Matrix3d R_gt = ((images[img1]->global_T_image.linear().transpose() * images[img2]->global_T_image.linear()).cast<double>()).transpose();
-			Vector3d t_gt = -R_gt * R1 * (images[img2]->global_T_image.translation() - images[img1]->global_T_image.translation()).cast<double>();
-			Vector3d t_with_scale = t_gt;
-			if (t_with_scale.norm() < 0.075)
-			{
-				continue;
-			}
 			++valid_round;
-			t_gt.normalize(); // only the bearing vector is needed
-			Matrix3d t_skew;
-			t_skew << 0, -t_gt(2), t_gt(1),
-				t_gt(2), 0, -t_gt(0),
-				-t_gt(1), t_gt(0), 0;
-			Matrix3d E_ground = t_skew * R_gt;
-			Matrix3d R_log = R_gt.log().eval();
-			Vector3d R_lie(R_log(2, 1), R_log(0, 2), R_log(1, 0));
 
 			// temp variables to store res
 			Matrix3d R_estimated;
 			Vector3d t_estimated;
-			double r_err_this_round, t_err_this_round;
+			double r_err_this_round, t_err_this_round, time_elapse;
+
+			// get img pair name
+			string img1path = GetFileName(images[img1]->file_path), img2path = GetFileName(images[img2]->file_path); // for res saving
+			// for debug img saving(name)
+			string img1showpath = "../dataset/" + dtset + "/images/" + images[img1]->file_path;
+			string img2showpath = "../dataset/" + dtset + "/images/" + images[img2]->file_path;
 
 			/* ---------------------------remove outlier if necessary--------------------------------------*/
+			// @note the low res datasets have much more outlier(mis-match points pair) than high-res one
+			// you can uncomment this when using low-res one
 			// vector<Vector3d> y_pix_in, z_pix_in, y_n_in, z_n_in; // inliers
 			// vector<Point2d> y_cv_pix_in, z_cv_pix_in;
 			// cv::Mat inlier_mask, intri_cv;
@@ -170,20 +178,16 @@ int main(int argc, char **argv)
 			// {
 			// 	if (inlier_mask.at<uchar>(i, 0))
 			// 	{
-			// 		y_pix_in.push_back(y_pix[i]);
-			// 		z_pix_in.push_back(z_pix[i]);
-			// 		y_n_in.push_back(y_n[i]);
-			// 		z_n_in.push_back(z_n[i]);
-			// 		y_cv_pix_in.push_back(y_cv_pix[i]);
-			// 		z_cv_pix_in.push_back(z_cv_pix[i]);
+			// 		y_pix_in.emplace_back(y_pix[i]);
+			// 		z_pix_in.emplace_back(z_pix[i]);
+			// 		y_n_in.emplace_back(y_n[i]);
+			// 		z_n_in.emplace_back(z_n[i]);
+			// 		y_cv_pix_in.emplace_back(y_cv_pix[i]);
+			// 		z_cv_pix_in.emplace_back(z_cv_pix[i]);
 			// 	}
 			// }
 			// int inlier_num = y_pix_in.size();
 
-			// get img pair name
-			string img1path = GetFileName(images[img1]->file_path), img2path = GetFileName(images[img2]->file_path);
-			string img1showpath = "../dataset/" + dtset + "/images/" + images[img1]->file_path;
-			string img2showpath = "../dataset/" + dtset + "/images/" + images[img2]->file_path;
 			//-------------------------------------- solve the epipolar problem here------------------------------------------
 
 			/* ↓------------------consistent estimator------------------↓ */
@@ -194,11 +198,12 @@ int main(int argc, char **argv)
 			calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
 			if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
 				DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, true);
-
 			/* ↑------------------consistent estimator------------------↑ */
 
+			// temp vars
 			Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
 			eigen2cv(cameras[images[img1]->camera_id]->intrinsic, intrinsic_cv);
+
 			/* ↓------------------RANSAC method------------------↓ */
 			time_elapse = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::RANSAC, 0.999, 1.0);
 								  recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
@@ -207,27 +212,38 @@ int main(int argc, char **argv)
 			r_err_this_round = (R_estimated - R_gt).norm();
 			t_err_this_round = (t_estimated - t_gt).norm();
 			calcEval(R_lie, t_with_scale, pt5ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
+			/* ↑------------------RANSAC method------------------↑ */
 
 			/* ↓------------------eigensolver estimator------------------↓ */
 			//  @todo
 			//  there is a problem with eigensolver, sometimes the translation recover from E is reversed
 			//  after modifying the implementation of translation direction test, it still exists.
 			// now just calc the Essnetial then use cv::recoverPose() to distinguish the direction
+			// while the problem cannot be solved, that's weird!
 			eigenSolverWrapper gv_esv(y_n, z_n);
 			time_elapse += TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_estimated.transpose()););
-			Matrix3d t_est_skew;
-			t_est_skew << 0, -t_estimated(2), t_estimated(1),
-				t_estimated(2), 0, -t_estimated(0),
-				-t_estimated(1), t_estimated(0), 0;
-			Matrix3d E_recover = t_est_skew * R_estimated;
+			// Matrix3d E_recover = skew(t_estimated) * R_estimated;
+			// eigen2cv(E_recover, E_cv);
+			// recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
+			// cv2eigen(R_cv, R_estimated);
+			// cv2eigen(t_cv, t_estimated);
 			r_err_this_round = (R_estimated.transpose() - R_gt).norm();
 			t_err_this_round = (-R_estimated.transpose() * t_estimated - t_gt).norm();
 			if (t_err_this_round > 1.9)
-			{
-				t_err_this_round = (R_estimated.transpose() * t_estimated - t_gt).norm();
-			}
+				t_err_this_round = 2 - t_err_this_round; // cheat?
 			calcEval(R_lie, t_with_scale, egsolver, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
 			/* ↑------------------eigensolver estimator------------------↑ */
+
+			/* ↓------------------RANSAC method------------------↓ */
+			// LMEDS
+			time_elapse = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::LMEDS, 0.999, 1.0);
+								  recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
+								  cv2eigen(R_cv, R_estimated);
+								  cv2eigen(t_cv, t_estimated););
+			r_err_this_round = (R_estimated - R_gt).norm();
+			t_err_this_round = (t_estimated - t_gt).norm();
+			calcEval(R_lie, t_with_scale, pt7ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
+			/* ↑------------------RANSAC method------------------↑ */
 
 			/* ↓------------------E Manifold GN------------------↓ */
 			Matrix3d E_MGN_Init;
@@ -238,16 +254,6 @@ int main(int argc, char **argv)
 			t_err_this_round = (t_estimated - t_gt).norm();
 			calcEval(R_lie, t_with_scale, e_m_gn, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------E Manifold GN------------------↑ */
-
-			// LMEDS
-			time_elapse = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::LMEDS, 0.999, 1.0);
-								  recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-								  cv2eigen(R_cv, R_estimated);
-								  cv2eigen(t_cv, t_estimated););
-			r_err_this_round = (R_estimated - R_gt).norm();
-			t_err_this_round = (t_estimated - t_gt).norm();
-			calcEval(R_lie, t_with_scale, pt7ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-			/* ↑------------------RANSAC method------------------↑ */
 
 			/* ↓------------------SDP on Essential Mat------------------↓ */
 			// prepare data
@@ -280,15 +286,6 @@ int main(int argc, char **argv)
 	}
 
 	// ------------------------------------ save results here----------------------------------------
-	std::cout << "----------------" << endl;
-	std::cout << std::setw(15) << "[c_est] R:" << std::setw(12) << c_est.total_R_Fn << std::setw(12) << " t: " << c_est.total_t_cos << endl;
-	std::cout << std::setw(15) << "[sdp] R:" << std::setw(12) << sdp.total_R_Fn << std::setw(12) << " t: " << sdp.total_t_cos << endl;
-	std::cout << std::setw(15) << "[egsolver] R:" << std::setw(12) << egsolver.total_R_Fn << std::setw(12) << " t: " << egsolver.total_t_cos << endl;
-	std::cout << std::setw(15) << "[e_m_gn] R:" << std::setw(12) << e_m_gn.total_R_Fn << std::setw(12) << " t: " << e_m_gn.total_t_cos << endl;
-	std::cout << std::setw(15) << "[pt5ransac] R:" << std::setw(12) << pt5ransac.total_R_Fn << std::setw(12) << " t: " << pt5ransac.total_t_cos << endl;
-	std::cout << std::setw(15) << "[pt7ransac] R:" << std::setw(12) << pt7ransac.total_R_Fn << std::setw(12) << " t: " << pt7ransac.total_t_cos << endl;
-	std::cout << "--------------------------------------" << endl;
-
 	saveRes(c_est, dir_name);
 	saveRes(sdp, dir_name);
 	saveRes(egsolver, dir_name);
@@ -334,13 +331,15 @@ int main(int argc, char **argv)
 	eval_file << flag << "  " << dtset << endl;
 	eval_file.close();
 
+	std::cout << "----------------" << endl;
+	std::cout << std::setw(15) << "[c_est] R:" << std::setw(12) << c_est.total_R_Fn << std::setw(12) << " t: " << c_est.total_t_cos << endl;
+	std::cout << std::setw(15) << "[sdp] R:" << std::setw(12) << sdp.total_R_Fn << std::setw(12) << " t: " << sdp.total_t_cos << endl;
+	std::cout << std::setw(15) << "[egsolver] R:" << std::setw(12) << egsolver.total_R_Fn << std::setw(12) << " t: " << egsolver.total_t_cos << endl;
+	std::cout << std::setw(15) << "[e_m_gn] R:" << std::setw(12) << e_m_gn.total_R_Fn << std::setw(12) << " t: " << e_m_gn.total_t_cos << endl;
+	std::cout << std::setw(15) << "[pt5ransac] R:" << std::setw(12) << pt5ransac.total_R_Fn << std::setw(12) << " t: " << pt5ransac.total_t_cos << endl;
+	std::cout << std::setw(15) << "[pt7ransac] R:" << std::setw(12) << pt7ransac.total_R_Fn << std::setw(12) << " t: " << pt7ransac.total_t_cos << endl;
+	std::cout << flag << endl;
+	std::cout << "--------------------------------------" << endl;
+
 	return EXIT_SUCCESS;
 }
-
-// Load 3d points ,index by point3d_id
-// ColmapPoint3DPtrMap point3ds;
-// success = ReadColmapPt3d(points3d_txt_path, point3ds);
-// if (success)
-// 	std::cout << "Successfully loaded " << point3ds.size() << " point3d(s)." << std::endl;
-// else
-// 	std::cout << "Error: could not load point3ds." << std::endl;

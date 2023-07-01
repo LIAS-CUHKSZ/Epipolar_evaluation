@@ -31,9 +31,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-#include <Eigen/StdVector>
+#include <eigen3/Eigen/Core>
+#include <eigen3/Eigen/Geometry>
+#include <eigen3/Eigen/StdVector>
 
 #include "cameras.h"
 

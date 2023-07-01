@@ -8,13 +8,17 @@ find_package(Eigen3  REQUIRED)
 find_package(OpenCV  REQUIRED)
 find_package(SDPA  REQUIRED)
 
-add_definitions(-DM_PI=3.1415926535f)
-
+# you can also add config.cmake of opengv to camke prefix and use find_package(OpenGV REQUIRED)
 set(OpenGV_LIBS "D:/Desktop/epipolar_eval/opengv/lib/libopengv.a")
-include_directories( ${SDPA_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} )
 include_directories("D:/Desktop/epipolar_eval/opengv/include")
-include_directories("D:/Desktop/epipolar_eval/sdpa/mumps/build/include") # path to your mumps include folder
+
+# path to your mumps include folder, for windows user only
 # by default, when building SDPA, the mumps lib will be built in the sdpa/mumps/build/lib folder
+# if you install SDPA from software repo, just comment this line
+include_directories("D:/Desktop/epipolar_eval/sdpa/mumps/build/include") 
+
+include_directories( ${SDPA_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} )
+
 
 if(NOT CMAKE_BUILD_TYPE)
   message(STATUS "Build type not specified, using RelWithDebInfo")
@@ -29,33 +33,29 @@ include_directories(
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -funroll-all-loops")
 set(CMAKE_Fortran_FLAGS "-Wall -fPIC -funroll-all-loops")
 
-# Executable.
-add_executable(epipolar_eval
-    src/cameras.cc
-    src/images.cc
-    src/eval.cc
-    src/pt3d.hpp
-    src/const_est.hpp
-    src/manifold_GN.hpp
-    src/utils.hpp
-    src/npt_pose.cpp
-    src/construct_coeff_constraint.cpp
-    src/construct_coeff_objective.cpp
-    src/eigensolver_wrapper.hpp
-    src/draw_corre.hpp
+
+include_directories(src/data_loader src/methods src/methods/E_sdp)
+
+file(GLOB_RECURSE SRCLIST 
+  src/data_loader/*.cpp 
+  src/data_loader/*.cc
+  src/data_loader/*.hpp
+  src/methods/*.cpp 
+  src/methods/*.cc 
+  src/methods/*.hpp
+  src/utils/hpp
 )
 
+# Executable,eval for epipolar geometry estimation
+add_executable(epipolar_eval src/eval.cc
+    src/utils.hpp
+    ${SRCLIST}
+)
 target_link_libraries(epipolar_eval ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} )
 
 # m-consistent evaluation 
 # add_executable(MonteCarlo src/m_pts_eval.cc
-# src/cameras.cc
-#     src/images.cc
-#     src/pt3d.hpp
-#     src/const_est.hpp
-#     src/manifold_GN.hpp
-#     src/utils.hpp
-#     src/npt_pose.cpp
-#     src/construct_coeff_constraint.cpp
-#     src/construct_coeff_objective.cpp)
-#   target_link_libraries(MonteCarlo ${OpenCV_LIBS} ${SDPA_LIBRARIES} )
+#                src/utils.hpp
+#                ${SRCLIST}
+# )
+# target_link_libraries(MonteCarlo ${OpenCV_LIBS} ${SDPA_LIBRARIES}  ${OpenGV_LIBS})

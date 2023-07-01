@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "images.h"
-#include "Eigen/Dense"
+#include "eigen3/Eigen/Dense"
 
 #include <fstream>
 

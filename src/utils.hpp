@@ -25,17 +25,37 @@
     }()
 
 namespace fs = std::filesystem;
+using namespace std;
+using namespace Eigen;
+
+
+Eigen::Matrix3d skew(Eigen::Vector3d a)
+{
+    Eigen::Matrix3d skew_mat;
+    skew_mat << 0, -a(2), a(1),
+        a(2), 0, -a(0),
+        -a(1), a(0), 0;
+    return skew_mat;
+}
+
+Eigen::Vector3d unskew(Eigen::Matrix3d M)
+{
+    Eigen::Matrix3d R_log = M.log().eval();
+    return Eigen::Vector3d(R_log(2, 1), R_log(0, 2), R_log(1, 0));
+}
 
 struct eval
 {
     std::string method_name;
     std::vector<double> t_err_per_round;
     std::vector<double> R_err_per_round;
+    std::vector<double> E_err_per_round;
     std::vector<double> t_gt_norm;
     std::vector<Eigen::Vector3d> R_gt;
     std::vector<int> num_pts;
     double total_R_Fn;
     double total_t_cos;
+    double total_E_Fn;
     std::vector<double> noise;
     std::vector<std::pair<std::string, std::string>> img_pair;
     std::vector<double> time;
@@ -75,7 +95,7 @@ int removeElements(std::vector<T> &vec, const std::vector<int> &mask)
     return num;
 }
 
-string getTimeDir(std::string dataset_name, std::string opt = "")
+std::string getTimeDir(std::string dataset_name, std::string opt = "")
 {
     auto now = std::chrono::system_clock::now();
     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
@@ -130,7 +150,7 @@ void printProg(int now, int total)
     }
 }
 
-int DecomposeEssential(cv::Mat &_rotation, cv::Mat &_translation, cv::Mat &_essential, std::vector<cv::Point2d> pts1, std::vector<cv::Point2d> pts2)
+int DecomposeEssential(cv::Mat &_rotation, cv::Mat &_translation, cv::Mat &_essential, std::vector<cv::Point2d>& pts1, std::vector<cv::Point2d>& pts2)
 {
 
     return 0;
