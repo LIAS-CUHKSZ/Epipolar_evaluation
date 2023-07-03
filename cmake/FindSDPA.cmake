@@ -1,7 +1,7 @@
 # https://github.com/coin-or/Gravity
 # https://github.com/coin-or/Gravity/blob/master/cmake/FindSDPA.cmake
 
-# set(SDPA_ROOT_DIR "$ENV{SDPA_ROOT_DIR}" CACHE PATH "SDPA root directory.")
+# ATTENTION: CHANGE THIS TO YOUR OWN PATH
 set(SDPA_ROOT_DIR "D:/Desktop/epipolar_eval/sdpa")
 message("Looking for Sdpa in ${SDPA_ROOT_DIR}")
 
@@ -13,10 +13,14 @@ find_library(Mumps_LIBRARY2 libmumps_common.a  HINTS "${SDPA_ROOT_DIR}/mumps/bui
 find_library(Mumps_LIBRARY3 libpord.a  HINTS "${SDPA_ROOT_DIR}/mumps/build/lib" )
 find_library(Mumps_LIBRARY4 libmpiseq.a	 HINTS "${SDPA_ROOT_DIR}/mumps/build/libseq" )
 # we build the program using MinGW under windows, so we need to find the corresponding libraries
-# change this to your own path
+# FOR WINDOWS USER: change this to your own path
 find_library(BLAS_LIBRARY libopenblas.a HINTS  "D:/Msys2/mingw64/lib")
 find_library(FORTRAN_LIBRARY libgfortran.dll.a HINTS "D:/Msys2/mingw64/lib/gcc/x86_64-w64-mingw32/13.1.0")
 find_library(FORTRAN_LIBRARY2 libquadmath.dll.a	HINTS "D:/Msys2/mingw64/lib")
+# FOR LINUX USER:
+# find_library(BLAS_LIBRARY libopenblas.a	HINTS "${SDPA_ROOT_DIR}/OpenBLAS")
+# find_library(FORTRAN_LIBRARY libgfortran.so.3 HINTS "/usr/lib/x86_64-linux-gnu/")
+# find_library(FORTRAN_LIBRARY2 libquadmath.so.0	HINTS "/usr/lib/x86_64-linux-gnu/")
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SDPA DEFAULT_MSG SDPA_LIBRARY SDPA_INCLUDE_DIR)

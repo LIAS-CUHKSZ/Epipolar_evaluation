@@ -85,11 +85,13 @@ OpenGV and SDPA need to be compiled from source code, while other dependencies c
    # Modify it to the path of your sdpa root directory
    ```
 
+   > SDPA is the dependency of npt-pose (E SDP method).
+
    - **For Windows users**
 
-      Modify the following library paths to the corresponding paths:
+     Modify the following library paths to the corresponding paths:
 
-      ```cmake
+     ```cmake
      find_library(BLAS_LIBRARY libopenblas.a HINTS  "D:/Msys2/mingw64/lib")
      find_library(FORTRAN_LIBRARY libgfortran.dll.a HINTS "D:/Msys2/mingw64/lib/gcc/x86_64-w64-mingw32/13.1.0")
      find_library(FORTRAN_LIBRARY2 libquadmath.dll.a	HINTS "D:/Msys2/mingw64/lib")
@@ -100,6 +102,7 @@ OpenGV and SDPA need to be compiled from source code, while other dependencies c
    - **For Linux users**, modify the paths as follows:
 
      ```cmake
+     # uncomment these three lines
      find_library(BLAS_LIBRARY libopenblas.a	HINTS "${SDPA_ROOT_DIR}/OpenBLAS")
      find_library(FORTRAN_LIBRARY libgfortran.so.3 HINTS "/usr/lib/x86_64-linux-gnu/")
      find_library(FORTRAN_LIBRARY2 libquadmath.so.0	HINTS "/usr/lib/x86_64-linux-gnu/")
@@ -283,6 +286,8 @@ OpenGV和SDPA需要从源代码编译，其他依赖都可以直接从软件仓�
    set(SDPA_ROOT_DIR "D:/Desktop/epipolar_eval/sdpa")
    # 修改为你的sdpa根目录路径
    ```
+
+   > SDPA is the dependency of npt-pose (E SDP method).
 
    - **对于windows用户**
 
