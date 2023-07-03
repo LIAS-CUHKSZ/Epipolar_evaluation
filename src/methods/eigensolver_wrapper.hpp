@@ -16,8 +16,11 @@ public:
     {
         y.resize(y1.size());
         z.resize(z1.size());
-        std::copy(y1.begin(), y1.end(), y.begin());
-        std::copy(z1.begin(), z1.end(), z.begin());
+        for(int i = 0; i < y1.size(); i++)
+        {
+            y[i] = y1[i].normalized();
+            z[i] = z1[i].normalized();
+        }
     }
 
     void GetPose(Matrix3d &R_est, Vector3d &t_est, Matrix3d R_init)

@@ -6,7 +6,9 @@ $dataset_path = "dataset"
 # $subdirs = Get-ChildItem -Path $dataset_path -Directory
 
 # only consider high res img
-$subdirs = Get-ChildItem -Path $dataset_path -Directory
+# we add a prefix "zlr" to the low res img folders
+$subdirs = Get-ChildItem $dataset_path | Where-Object { $_.PSIsContainer -and $_.Name -notlike "zlr*" }
+# $subdirs = Get-ChildItem $dataset_path # this will evaluate all scenes
 
 Write-Host ($subdirs.Count)
 Set-Location -Path "build"
@@ -23,22 +25,19 @@ foreach ($subdir in $subdirs)
     if ($count -lt $max_parallel)
     {
         # Start a new program and increment the count
-        Start-Process -FilePath "epipolar_eval.exe" -ArgumentList "$subdir_name $windows_size -NoNewWindow"
+        Start-Process powershell.exe -ArgumentList "./epipolar_eval.exe $subdir_name $windows_size"
         $count++
+        sleep 1
     }
-    else
+    while($count -ge $max_parallel)
     {
-        # Wait for a program to finish and decrement the count
-        Wait-Process -Id (Get-Process -Name "epipolar_eval" | Select-Object -First 1).Id
-        $count--
-
-        # Start a new program and increment the count
-        Start-Process -FilePath "epipolar_eval.exe" -ArgumentList "$subdir_name $windows_size -NoNewWindow"
-        $count++
+        $running_jobs = (Get-Process -Name "epipolar_eval" ).Count
+        if($running_jobs -lt $max_parallel -and $running_jobs -gt 0)
+        {
+            $count--
+        }
+        sleep 1
     }
 }
-
-# Wait for all programs to finish
-Wait-Process -Name "epipolar_eval"
 
 Set-Location -Path ".."

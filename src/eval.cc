@@ -53,7 +53,7 @@ int main(int argc, char **argv)
 		std::cout << "Usage: " << argv[0] << "  <datasetname>  <img_windows_size>" << std::endl;
 		std::cout << "you should put your dataset in the <dataset> dir of this proj" << std::endl;
 		std::cout << "if <img_window_size> is set to -1, then each pair of img in the dataset will be taken into account" << endl;
-		return EXIT_FAILURE; // <path_to_pt3ds_txt>
+		return EXIT_FAILURE;
 	}
 	bool debug_img = false;
 	if (argc == 4) // input the 4th param(anything is ok) to enable debug image
@@ -64,7 +64,6 @@ int main(int argc, char **argv)
 		std::cout << "evaluate all img pairs" << std::endl;
 	string cameras_txt_path = "../dataset/" + dtset + "/dslr_calibration_undistorted/cameras.txt";
 	string images_txt_path = "../dataset/" + dtset + "/dslr_calibration_undistorted/images.txt";
-	// string points3D_txt_path = " ../" + dtset + "/dslr_calibration_undistorted/points3D.txt";
 
 	// Load cameras (indexed by: camera_id).
 	ColmapCameraPtrMap cameras;
@@ -90,7 +89,7 @@ int main(int argc, char **argv)
 	std::cout << "[" << dtset << "]eval on going, please wait..." << endl;
 
 	// accumulate the error
-	eval c_est("c_est"), e_m_gn("e_m_gn"), sdp("sdp"), pt5ransac("pt5ransac"), pt7ransac("pt7ransac"), egsolver("eigenSolver");
+	eval c_est("c_est"), e_m_gn("e_m_gn"), sdp("sdp"), pt5ransac("pt5ransac"), pt5lmeds("pt5lmeds"), egsolver("eigenSolver");
 	// the number of valid pairs, only when the number of covisible points is larger than 20
 	// and the norm of translation is bigger than 0.075m will this pair to be evaluate
 	int valid_round = 0;
@@ -110,7 +109,7 @@ int main(int argc, char **argv)
 	for (int img1 = 1; img1 < images.size(); ++img1)
 	{
 		// find the covisible points
-		// surfix _pix means homogeneous coord in pixel plane, _n means normalized coordinates
+		// surfix _pix means homogeneous coord in pixel plane, _n means normalized coordinates(z=1)
 		for (size_t img2 = img1 + 1; img2 <= images.size() && (img2 <= img1 + wds || wds == -2); ++img2, ++tmp_finish)
 		{
 			printProg(tmp_finish, progress);
@@ -161,32 +160,41 @@ int main(int argc, char **argv)
 			double r_err_this_round, t_err_this_round, time_elapse;
 
 			// get img pair name
-			string img1path = GetFileName(images[img1]->file_path), img2path = GetFileName(images[img2]->file_path); // for res saving
+			string img1path = to_string(img1) + "-" + GetFileName(images[img1]->file_path),
+				   img2path = to_string(img2) + "-" + GetFileName(images[img2]->file_path); // for res saving
 			// for debug img saving(name)
 			string img1showpath = "../dataset/" + dtset + "/images/" + images[img1]->file_path;
 			string img2showpath = "../dataset/" + dtset + "/images/" + images[img2]->file_path;
 
 			/* ---------------------------remove outlier if necessary--------------------------------------*/
 			// @note the low res datasets have much more outlier(mis-match points pair) than high-res one
-			// you can uncomment this when using low-res one
-			// vector<Vector3d> y_pix_in, z_pix_in, y_n_in, z_n_in; // inliers
-			// vector<Point2d> y_cv_pix_in, z_cv_pix_in;
-			// cv::Mat inlier_mask, intri_cv;
-			// cv::eigen2cv(cameras[images[img1]->camera_id]->intrinsic, intri_cv);
-			// cv::findEssentialMat(y_cv_pix, z_cv_pix, intri_cv, cv::RANSAC, 0.999, 3.0, inlier_mask);
-			// for (int i = 0; i < inlier_mask.rows; ++i) // remove outlier using inlier_mask
-			// {
-			// 	if (inlier_mask.at<uchar>(i, 0))
-			// 	{
-			// 		y_pix_in.emplace_back(y_pix[i]);
-			// 		z_pix_in.emplace_back(z_pix[i]);
-			// 		y_n_in.emplace_back(y_n[i]);
-			// 		z_n_in.emplace_back(z_n[i]);
-			// 		y_cv_pix_in.emplace_back(y_cv_pix[i]);
-			// 		z_cv_pix_in.emplace_back(z_cv_pix[i]);
-			// 	}
-			// }
-			// int inlier_num = y_pix_in.size();
+			// you can add definition REMOVE_OUTLIER when using low-res one
+#ifdef REMOVE_OUTLIER
+			vector<Vector3d> y_pix_in, z_pix_in, y_n_in, z_n_in; // inliers
+			vector<Point2d> y_cv_pix_in, z_cv_pix_in;
+			cv::Mat inlier_mask, intri_cv;
+			cv::eigen2cv(cameras[images[img1]->camera_id]->intrinsic, intri_cv);
+			cv::findEssentialMat(y_cv_pix, z_cv_pix, intri_cv, cv::RANSAC, 0.999, 3.0, inlier_mask);
+			for (int i = 0; i < inlier_mask.rows; ++i) // remove outlier using inlier_mask
+			{
+				if (inlier_mask.at<uchar>(i, 0))
+				{
+					y_pix_in.emplace_back(y_pix[i]);
+					z_pix_in.emplace_back(z_pix[i]);
+					y_n_in.emplace_back(y_n[i]);
+					z_n_in.emplace_back(z_n[i]);
+					y_cv_pix_in.emplace_back(y_cv_pix[i]);
+					z_cv_pix_in.emplace_back(z_cv_pix[i]);
+				}
+			}
+			y_pix = std::move(y_pix_in);
+			z_pix = std::move(z_pix_in);
+			y_n = std::move(y_n_in);
+			z_n = std::move(z_n_in);
+			y_cv_pix = std::move(y_cv_pix_in);
+			z_cv_pix = std::move(z_cv_pix_in);
+			total_covisible = y_pix.size();
+#endif // REMOVE_OUTLIER
 
 			//-------------------------------------- solve the epipolar problem here------------------------------------------
 
@@ -197,63 +205,53 @@ int main(int argc, char **argv)
 			t_err_this_round = (t_estimated - t_gt).norm();
 			calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
 			if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
-				DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, true);
+				DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, false);
 			/* ↑------------------consistent estimator------------------↑ */
 
 			// temp vars
 			Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
+			Matrix3d R_r5pt;
+			Vector3d t_r5pt;
 			eigen2cv(cameras[images[img1]->camera_id]->intrinsic, intrinsic_cv);
 
-			/* ↓------------------RANSAC method------------------↓ */
-			time_elapse = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::RANSAC, 0.999, 1.0);
-								  recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-								  cv2eigen(R_cv, R_estimated);
-								  cv2eigen(t_cv, t_estimated););
-			r_err_this_round = (R_estimated - R_gt).norm();
-			t_err_this_round = (t_estimated - t_gt).norm();
+			/* ↓------------------RANSAC-5pt method------------------↓ */
+			double ransac_time = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::RANSAC, 0.999, 1.0);
+										 recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
+										 cv2eigen(R_cv, R_r5pt);
+										 cv2eigen(t_cv, t_r5pt););
+			time_elapse = ransac_time;
+			r_err_this_round = (R_r5pt - R_gt).norm();
+			t_err_this_round = (t_r5pt - t_gt).norm();
 			calcEval(R_lie, t_with_scale, pt5ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-			/* ↑------------------RANSAC method------------------↑ */
+			/* ↑------------------RANSAC-5pt method------------------↑ */
 
 			/* ↓------------------eigensolver estimator------------------↓ */
-			//  @todo
-			//  there is a problem with eigensolver, sometimes the translation recover from E is reversed
-			//  after modifying the implementation of translation direction test, it still exists.
-			// now just calc the Essnetial then use cv::recoverPose() to distinguish the direction
-			// while the problem cannot be solved, that's weird!
 			eigenSolverWrapper gv_esv(y_n, z_n);
-			time_elapse += TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_estimated.transpose()););
-			// Matrix3d E_recover = skew(t_estimated) * R_estimated;
-			// eigen2cv(E_recover, E_cv);
-			// recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-			// cv2eigen(R_cv, R_estimated);
-			// cv2eigen(t_cv, t_estimated);
+			time_elapse = TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_r5pt.transpose());) + ransac_time;
 			r_err_this_round = (R_estimated.transpose() - R_gt).norm();
 			t_err_this_round = (-R_estimated.transpose() * t_estimated - t_gt).norm();
-			if (t_err_this_round > 1.9)
-				t_err_this_round = 2 - t_err_this_round; // cheat?
 			calcEval(R_lie, t_with_scale, egsolver, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
 			/* ↑------------------eigensolver estimator------------------↑ */
 
-			/* ↓------------------RANSAC method------------------↓ */
-			// LMEDS
+			/* ↓------------------E Manifold GN------------------↓ */
+			Matrix3d E_MGN_Init;
+			cv2eigen(E_cv, E_MGN_Init); // use RANSAC-5pt result as initial value
+			ManifoldGN MGN(cameras[images[img1]->camera_id]->intrinsic);
+			time_elapse = TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n, E_MGN_Init);) + ransac_time;
+			r_err_this_round = (R_estimated - R_gt).norm();
+			t_err_this_round = (t_estimated - t_gt).norm();
+			calcEval(R_lie, t_with_scale, e_m_gn, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
+			/* ↑------------------E Manifold GN------------------↑ */
+
+			/* ↓------------------LMEDS-5pt method------------------↓ */
 			time_elapse = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::LMEDS, 0.999, 1.0);
 								  recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
 								  cv2eigen(R_cv, R_estimated);
 								  cv2eigen(t_cv, t_estimated););
 			r_err_this_round = (R_estimated - R_gt).norm();
 			t_err_this_round = (t_estimated - t_gt).norm();
-			calcEval(R_lie, t_with_scale, pt7ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-			/* ↑------------------RANSAC method------------------↑ */
-
-			/* ↓------------------E Manifold GN------------------↓ */
-			Matrix3d E_MGN_Init;
-			cv2eigen(E_cv, E_MGN_Init);
-			ManifoldGN MGN(cameras[images[img1]->camera_id]->intrinsic);
-			time_elapse = TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n, E_MGN_Init););
-			r_err_this_round = (R_estimated - R_gt).norm();
-			t_err_this_round = (t_estimated - t_gt).norm();
-			calcEval(R_lie, t_with_scale, e_m_gn, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-			/* ↑------------------E Manifold GN------------------↑ */
+			calcEval(R_lie, t_with_scale, pt5lmeds, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
+			/* ↑------------------LMEDS-5pt method------------------↑ */
 
 			/* ↓------------------SDP on Essential Mat------------------↓ */
 			// prepare data
@@ -291,7 +289,7 @@ int main(int argc, char **argv)
 	saveRes(egsolver, dir_name);
 	saveRes(e_m_gn, dir_name);
 	saveRes(pt5ransac, dir_name);
-	saveRes(pt7ransac, dir_name);
+	saveRes(pt5lmeds, dir_name);
 
 	// save method error;
 	std::ofstream file(dir_name + "/errors.txt");
@@ -301,10 +299,10 @@ int main(int argc, char **argv)
 	file << std::setw(12) << "egsolver: " << std::setw(10) << egsolver.average_time << std::setw(10) << egsolver.total_R_Fn << std::setw(10) << egsolver.total_t_cos << endl;
 	file << std::setw(12) << "e_m_gn: " << std::setw(10) << e_m_gn.average_time << std::setw(10) << e_m_gn.total_R_Fn << std::setw(10) << e_m_gn.total_t_cos << endl;
 	file << std::setw(12) << "pt5ransac: " << std::setw(10) << pt5ransac.average_time << std::setw(10) << pt5ransac.total_R_Fn << std::setw(10) << pt5ransac.total_t_cos << endl;
-	file << std::setw(12) << "pt7ransac: " << std::setw(10) << pt7ransac.average_time << std::setw(10) << pt7ransac.total_R_Fn << std::setw(10) << pt7ransac.total_t_cos << endl;
+	file << std::setw(12) << "pt5lmeds: " << std::setw(10) << pt5lmeds.average_time << std::setw(10) << pt5lmeds.total_R_Fn << std::setw(10) << pt5lmeds.total_t_cos << endl;
 	// if the error of c_est is the smallest of the five methods, print it
 	int flag = 0;
-	if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn && c_est.total_R_Fn < pt5ransac.total_R_Fn && c_est.total_R_Fn < pt7ransac.total_R_Fn && c_est.total_R_Fn < egsolver.total_R_Fn)
+	if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn && c_est.total_R_Fn < pt5ransac.total_R_Fn && c_est.total_R_Fn < pt5lmeds.total_R_Fn && c_est.total_R_Fn < egsolver.total_R_Fn)
 	{
 		file << "c_est sota R" << endl;
 		flag |= 1;
@@ -337,7 +335,7 @@ int main(int argc, char **argv)
 	std::cout << std::setw(15) << "[egsolver] R:" << std::setw(12) << egsolver.total_R_Fn << std::setw(12) << " t: " << egsolver.total_t_cos << endl;
 	std::cout << std::setw(15) << "[e_m_gn] R:" << std::setw(12) << e_m_gn.total_R_Fn << std::setw(12) << " t: " << e_m_gn.total_t_cos << endl;
 	std::cout << std::setw(15) << "[pt5ransac] R:" << std::setw(12) << pt5ransac.total_R_Fn << std::setw(12) << " t: " << pt5ransac.total_t_cos << endl;
-	std::cout << std::setw(15) << "[pt7ransac] R:" << std::setw(12) << pt7ransac.total_R_Fn << std::setw(12) << " t: " << pt7ransac.total_t_cos << endl;
+	std::cout << std::setw(15) << "[pt5lmeds] R:" << std::setw(12) << pt5lmeds.total_R_Fn << std::setw(12) << " t: " << pt5lmeds.total_t_cos << endl;
 	std::cout << flag << endl;
 	std::cout << "--------------------------------------" << endl;
 

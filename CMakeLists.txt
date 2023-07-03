@@ -8,6 +8,9 @@ find_package(Eigen3  REQUIRED)
 find_package(OpenCV  REQUIRED)
 find_package(SDPA  REQUIRED)
 
+# uncomment this to remove outliers
+# add_definitions(-DREMOVE_OUTLIER)
+
 # you can also add config.cmake of opengv to camke prefix and use find_package(OpenGV REQUIRED)
 set(OpenGV_LIBS "D:/Desktop/epipolar_eval/opengv/lib/libopengv.a")
 include_directories("D:/Desktop/epipolar_eval/opengv/include")
@@ -53,9 +56,8 @@ add_executable(epipolar_eval src/eval.cc
 )
 target_link_libraries(epipolar_eval ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} )
 
-# m-consistent evaluation 
-# add_executable(MonteCarlo src/m_pts_eval.cc
-#                src/utils.hpp
-#                ${SRCLIST}
-# )
-# target_link_libraries(MonteCarlo ${OpenCV_LIBS} ${SDPA_LIBRARIES}  ${OpenGV_LIBS})
+add_executable(MonteCarlo src/m_pts_eval.cc
+               src/utils.hpp
+               ${SRCLIST}
+)
+target_link_libraries(MonteCarlo ${OpenCV_LIBS} ${SDPA_LIBRARIES}  ${OpenGV_LIBS})

@@ -30,17 +30,6 @@
                     "ignoreFailures": true
                 }
             ]
-        },
-        {
-            "name": "(Windows) Launch",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "D:\\Desktop\\format-loader\\build\\ETH3DFormatLoader.exe",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${fileDirname}",
-            "environment": [],
-            "console": "externalTerminal"
         }
     ]
 }

@@ -28,7 +28,6 @@ namespace fs = std::filesystem;
 using namespace std;
 using namespace Eigen;
 
-
 Eigen::Matrix3d skew(Eigen::Vector3d a)
 {
     Eigen::Matrix3d skew_mat;
@@ -119,7 +118,10 @@ void saveRes(eval &evals, std::string time_dir)
     evals.average_time /= evals.time.size();
     for (int i = 0; i < evals.R_err_per_round.size(); ++i)
     {
-        file << i + 1 << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << "," << evals.t_gt_norm[i] << "," << evals.R_gt[i].transpose() << std::endl;
+        file << i + 1 << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << "," << evals.t_gt_norm[i] << "," << evals.R_gt[i].transpose();
+        // if (evals.noise[i] != 0)
+        //     file << "," << evals.noise[i];
+        file << std::endl;
     }
     file.close();
 }
@@ -150,7 +152,7 @@ void printProg(int now, int total)
     }
 }
 
-int DecomposeEssential(cv::Mat &_rotation, cv::Mat &_translation, cv::Mat &_essential, std::vector<cv::Point2d>& pts1, std::vector<cv::Point2d>& pts2)
+int DecomposeEssential(cv::Mat &_rotation, cv::Mat &_translation, cv::Mat &_essential, std::vector<cv::Point2d> &pts1, std::vector<cv::Point2d> &pts2)
 {
 
     return 0;
