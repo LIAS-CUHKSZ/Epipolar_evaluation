@@ -1,4 +1,9 @@
 #!/bin/bash
+if [ $# -ne 2 ]
+then
+    echo "Usage: $0 <windows_size> <max_parallel>"
+    exit 1
+fi
 
 windows_size=$1
 max_parallel=$2

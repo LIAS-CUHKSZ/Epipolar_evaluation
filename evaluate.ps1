@@ -1,3 +1,9 @@
+if ($args.Length -lt 2)
+{
+    Write-Host "Usage: evaluate.ps1 <windows_size> <max_parallel>"
+    exit
+}
+
 $windows_size = $args[0]
 $max_parallel = $args[1]
 $dataset_path = "dataset"

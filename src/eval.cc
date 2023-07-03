@@ -174,8 +174,8 @@ int main(int argc, char **argv)
 			vector<Point2d> y_cv_pix_in, z_cv_pix_in;
 			cv::Mat inlier_mask, intri_cv;
 			cv::eigen2cv(cameras[images[img1]->camera_id]->intrinsic, intri_cv);
-			cv::findEssentialMat(y_cv_pix, z_cv_pix, intri_cv, cv::RANSAC, 0.999, 3.0, inlier_mask);
-			for (int i = 0; i < inlier_mask.rows; ++i) // remove outlier using inlier_mask
+			cv::findEssentialMat(y_cv_pix, z_cv_pix, intri_cv, cv::LMEDS, 0.999, 20, inlier_mask);
+			for (size_t i = 0; i < inlier_mask.rows; ++i) // remove outlier using inlier_mask
 			{
 				if (inlier_mask.at<uchar>(i, 0))
 				{

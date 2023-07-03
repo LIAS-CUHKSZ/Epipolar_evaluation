@@ -1,10 +1,15 @@
 #!/bin/bash
+if [ $# != 5 ]
+then
+    echo "Usage: ./m-consistent_eval.sh <dataset> <max_parallel> <imgidx1> <imgidx2> <sample_time>"
+    exit -1
+fi
 
 dataset=$1
 max_parallel=$2
 imgidx1=$3
 imgidx2=$4
-sample_size=$5
+sample_time=$5
 num_pts=(10 20 40 80 160 320 640 1280 2560 4000 -1)
 
 cd build
@@ -19,7 +24,7 @@ do
     if [ $count -lt $max_parallel ]
     then
         # Start a new program and increment the count
-        ./MonteCarlo.exe "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_size" & 
+        ./MonteCarlo.exe "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_time" & 
         count=$((count+1))
     else
         # Wait for a program to finish and decrement the count
@@ -27,7 +32,7 @@ do
         count=$((count-1))
 
         # Start a new program and increment the count
-        ./MonteCarlo.exe "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_size" & 
+        ./MonteCarlo.exe "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_time" & 
         count=$((count+1))
     fi
 done

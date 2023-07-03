@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     }
     std::cout << "[" << dtset << "]eval on going, please wait..." << endl;
 
-    std::string res_path = "m-consistent-" + imgidx1 + "-" + imgidx1 + "-" + dtset;
+    std::string res_path = "m-consistent-" + imgidx1 + "-" + imgidx2 + "-" + dtset;
     if (!fs::exists(res_path))
         fs::create_directory(res_path);
 
@@ -110,6 +110,38 @@ int main(int argc, char **argv)
         std::cout << "Warning: covisible points are less than the given target. Exit" << std::endl;
         return EXIT_FAILURE;
     }
+
+    
+    /* ---------------------------remove outlier if necessary--------------------------------------*/
+    // @note the low res datasets have much more outlier(mis-match points pair) than high-res one
+    // you can add definition REMOVE_OUTLIER when using low-res one
+    // This option is recommended when you want to evaluate the m-consistency
+#ifdef REMOVE_OUTLIER
+    vector<Vector3d> y_pix_in, z_pix_in, y_n_in, z_n_in; // inliers
+    vector<Point2d> y_cv_pix_in, z_cv_pix_in;
+    cv::Mat inlier_mask, intri_cv;
+    cv::eigen2cv(cameras[images[img1]->camera_id]->intrinsic, intri_cv);
+    cv::findEssentialMat(y_cv_pix, z_cv_pix, intri_cv, cv::LMEDS, 0.999, 20, inlier_mask);
+    for (size_t i = 0; i < inlier_mask.rows; ++i) // remove outlier using inlier_mask
+    {
+        if (inlier_mask.at<uchar>(i, 0))
+        {
+            y_pix_in.emplace_back(yptmp[i]);
+            z_pix_in.emplace_back(zptmp[i]);
+            y_n_in.emplace_back(yntmp[i]);
+            z_n_in.emplace_back(zntmp[i]);
+            y_cv_pix_in.emplace_back(ycvtmp[i]);
+            z_cv_pix_in.emplace_back(zcvtmp[i]);
+        }
+    }
+    yptmp = std::move(y_pix_in);
+    zptmp = std::move(z_pix_in);
+    yntmp = std::move(y_n_in);
+    zntmp = std::move(z_n_in);
+    ycvtmp = std::move(y_cv_pix_in);
+    zcvtmp = std::move(z_cv_pix_in);
+    covisible_num = y_pix.size();
+#endif // REMOVE_OUTLIER
 
     // compute the ground truth relative pose
     Matrix3d R1 = images[idx1]->global_T_image.linear().transpose().cast<double>();
@@ -169,6 +201,7 @@ int main(int argc, char **argv)
                 z_cv_pix.emplace_back(zcvtmp[idx]);
             }
         }
+
         /* ↓------------------consistent estimator------------------↓ */
         ConsistentEst est(cameras[images[idx1]->camera_id]->intrinsic);
         est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix);
@@ -183,7 +216,6 @@ int main(int argc, char **argv)
         MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n);
         r_err_this_round[1] += (R_estimated - R_gt).norm();
         t_err_this_round[1] += (t_estimated - t_gt).norm();
-
         /* ↑------------------E Manifold GN------------------↑ */
 
         Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
@@ -221,6 +253,8 @@ int main(int argc, char **argv)
         double *npt_p1 = new double[3 * y_n.size()], *npt_p2 = new double[3 * y_n.size()];
         for (size_t i = 0; i < y_n.size(); ++i)
         {
+            y_n[i].normalize();
+            z_n[i].normalize();
             npt_p1[3 * i] = y_n[i](0);
             npt_p1[3 * i + 1] = y_n[i](1);
             npt_p1[3 * i + 2] = y_n[i](2);
@@ -228,13 +262,14 @@ int main(int argc, char **argv)
             npt_p2[3 * i + 1] = z_n[i](1);
             npt_p2[3 * i + 2] = z_n[i](2);
         }
+        // solve
         double *C = new double[81];
         Eigen::Matrix<double, 12, 12> X_sol;
         Matrix3d sdp_E;
-        npt_pose(npt_p1, npt_p2, C, y_n.size(), X_sol, sdp_E, true);
+        npt_pose(npt_p2, npt_p1, C, y_n.size(), X_sol, sdp_E, true);
         eigen2cv(sdp_E, E_cv);
         cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-        cv2eigen(R_cv.t(), R_estimated);
+        cv2eigen(R_cv, R_estimated);
         cv2eigen(t_cv, t_estimated);
         r_err_this_round[4] += (R_estimated - R_gt).norm();
         t_err_this_round[4] += (t_estimated - t_gt).norm();
