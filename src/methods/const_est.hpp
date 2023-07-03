@@ -39,7 +39,7 @@ private:
     {
         /* --------------------get statistics-------------------- */
         MatrixXd A(m, 9);
-        Matrix3d Y_bar;
+        Matrix3d Y_bar = Matrix3d::Zero();
         for (int i = 0; i < m; i++)
         {
             A.block<1, 9>(i, 0) = kron(y_h[i].transpose(), z_h[i].transpose()).eval();

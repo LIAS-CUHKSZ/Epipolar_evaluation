@@ -31,7 +31,7 @@ void DrawCorreImg(std::string dts, std::string path1, std::string path2, std::ve
     cv::Mat img2 = imread(path2);
     cv::Mat img;
     hconcat(img1, img2, img);
-    for (int i = 0; i < pix1.size(); i++)
+    for (size_t i = 0; i < pix1.size(); i++)
     {
         // 生成随机种子
         std::srand(std::time(nullptr));

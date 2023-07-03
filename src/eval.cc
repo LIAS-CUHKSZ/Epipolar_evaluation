@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 	vector<Vector3d> y_pix, z_pix, y_n, z_n;
 	vector<Point2d> y_cv_pix, z_cv_pix;
 
-	for (int img1 = 1; img1 < images.size(); ++img1)
+	for (size_t img1 = 1; img1 < images.size(); ++img1)
 	{
 		// find the covisible points
 		// surfix _pix means homogeneous coord in pixel plane, _n means normalized coordinates(z=1)
@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 			if (t_with_scale.norm() < 0.075) // two-view geometry cannot evaluate the translation when it is too small
 				continue;
 			t_gt.normalize(); // only the bearing vector is needed
-			Matrix3d E_ground = skew(t_gt) * R_gt;
+			// Matrix3d E_ground = skew(t_gt) * R_gt;
 			Vector3d R_lie = unskew(R_gt);
 
 			y_pix.clear();

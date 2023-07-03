@@ -16,7 +16,7 @@ public:
     {
         y.resize(y1.size());
         z.resize(z1.size());
-        for(int i = 0; i < y1.size(); i++)
+        for(size_t i = 0; i < y1.size(); i++)
         {
             y[i] = y1[i].normalized();
             z[i] = z1[i].normalized();

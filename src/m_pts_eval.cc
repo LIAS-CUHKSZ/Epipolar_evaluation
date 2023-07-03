@@ -115,15 +115,12 @@ int main(int argc, char **argv)
     Matrix3d R1 = images[idx1]->global_T_image.linear().transpose().cast<double>();
     Matrix3d R_gt = ((images[idx1]->global_T_image.linear().transpose() * images[idx2]->global_T_image.linear()).cast<double>()).transpose();
     Vector3d t_gt = -R_gt * R1 * (images[idx2]->global_T_image.translation() - images[idx1]->global_T_image.translation()).cast<double>();
-    Vector3d t_with_scale = t_gt;
-    if (t_with_scale.norm() < 0.075) // two-view geometry cannot evaluate the translation when it is too small
+    if (t_gt.norm() < 0.075) // two-view geometry cannot evaluate the translation when it is too small
     {
         std::cout << "Error: translation too small.Exit" << std::endl;
         return EXIT_FAILURE;
     }
     t_gt.normalize(); // only the bearing vector is needed
-    Matrix3d E_ground = skew(t_gt) * R_gt;
-    Vector3d R_lie = unskew(R_gt);
 
     // temp variables to store res
     Matrix3d R_estimated;
@@ -161,7 +158,7 @@ int main(int argc, char **argv)
             z_n.clear();
             y_cv_pix.clear();
             z_cv_pix.clear();
-            for (int i = 0; i < pnum; ++i)
+            for (auto i = 0; i < pnum; ++i)
             {
                 int idx = std::rand() % covisible_num;
                 y_pix.emplace_back(yptmp[idx]);
@@ -247,7 +244,7 @@ int main(int argc, char **argv)
     // save res to res_path dir
     if (pnum != -1)
     {
-        for (int i = 0; i < 6; ++i)
+        for (size_t i = 0; i < 6; ++i)
         {
             r_err_this_round[i] /= sample_num;
             t_err_this_round[i] /= sample_num;
@@ -256,7 +253,7 @@ int main(int argc, char **argv)
     }
     else
         pnum = covisible_num;
-    for (int i = 1; i < 6; ++i)
+    for (size_t i = 1; i < 6; ++i)
     {
         appendRes(res_path, method_name[i], t_err_this_round[i], r_err_this_round[i], pnum);
     }
