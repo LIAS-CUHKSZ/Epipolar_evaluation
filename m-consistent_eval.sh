@@ -35,6 +35,9 @@ do
         ./MonteCarlo.exe "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_time" & 
         count=$((count+1))
     fi
+    # if you want to get a accurate time, please comment the above if-else statement and uncomment the following line
+    # this wil run the program one by one
+    # ./MonteCarlo.exe "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_time"
 done
 
 # Wait for all programs to finish

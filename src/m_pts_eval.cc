@@ -23,7 +23,7 @@ using namespace std;
 using namespace Eigen;
 
 namespace fs = std::filesystem;
-void appendRes(const std::string &res_path, const std::string &res_name, double t, double r, int pt_num, double est_vars = 0);
+void appendRes(const std::string &res_path, const std::string &res_name, double t, double r, int pt_num, double time, double est_vars = 0);
 
 int main(int argc, char **argv)
 {
@@ -107,11 +107,11 @@ int main(int argc, char **argv)
     }
     if (covisible_num < pnum)
     {
-        std::cout << "Warning: covisible points are less than the given target. Exit" << std::endl;
+        std::cout << "Warning: covisible points are less than the given target" << std::endl;
+        std::cout << "All %d available pts would be used for eval" << covisible_num << std::endl;
         return EXIT_FAILURE;
     }
 
-    
     /* ---------------------------remove outlier if necessary--------------------------------------*/
     // @note the low res datasets have much more outlier(mis-match points pair) than high-res one
     // you can add definition REMOVE_OUTLIER when using low-res one
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
     // temp variables to store res
     Matrix3d R_estimated;
     Vector3d t_estimated;
-    double r_err_this_round[6] = {0}, t_err_this_round[6] = {0};
+    double r_err_this_round[6] = {0}, t_err_this_round[6] = {0}, time_cons_this_round[6] = {0};
     string method_name[6] = {
         "c_est",
         "E_GN",
@@ -167,7 +167,7 @@ int main(int argc, char **argv)
         "E_EIGEN"};
     double est_vars = 0;
 
-    for (auto iter = 1; iter < sample_num; iter++)
+    for (auto iter = 1; iter <= sample_num; iter++)
     {
         // randomly choose num points,sample from the covisible points
         if (pnum == -1)
@@ -204,7 +204,8 @@ int main(int argc, char **argv)
 
         /* ↓------------------consistent estimator------------------↓ */
         ConsistentEst est(cameras[images[idx1]->camera_id]->intrinsic);
-        est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix);
+        time_cons_this_round[0] += TIME_IT(
+            est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix););
         r_err_this_round[0] += (R_estimated - R_gt).norm();
         t_err_this_round[0] += (t_estimated - t_gt).norm();
         est_vars += est.var_est;
@@ -213,7 +214,7 @@ int main(int argc, char **argv)
 
         /* ↓------------------E Manifold GN------------------↓ */
         ManifoldGN MGN(cameras[images[idx1]->camera_id]->intrinsic);
-        MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n);
+        time_cons_this_round[1] += TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n););
         r_err_this_round[1] += (R_estimated - R_gt).norm();
         t_err_this_round[1] += (t_estimated - t_gt).norm();
         /* ↑------------------E Manifold GN------------------↑ */
@@ -221,19 +222,21 @@ int main(int argc, char **argv)
         Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
 
         /* ↓------------------RANSAC method------------------↓ */
-        eigen2cv(cameras[images[idx1]->camera_id]->intrinsic, intrinsic_cv);
-        E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::RANSAC, 0.999, 1.0);
-        recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-        cv2eigen(R_cv, R_estimated);
-        cv2eigen(t_cv, t_estimated);
+        time_cons_this_round[2] += TIME_IT(
+            eigen2cv(cameras[images[idx1]->camera_id]->intrinsic, intrinsic_cv);
+            E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::RANSAC, 0.999, 1.0);
+            recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
+            cv2eigen(R_cv, R_estimated);
+            cv2eigen(t_cv, t_estimated););
         r_err_this_round[2] += (R_estimated - R_gt).norm();
         t_err_this_round[2] += (t_estimated - t_gt).norm();
 
-        eigen2cv(cameras[images[idx1]->camera_id]->intrinsic, intrinsic_cv);
-        E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::LMEDS, 0.999, 1.0);
-        recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-        cv2eigen(R_cv, R_estimated);
-        cv2eigen(t_cv, t_estimated);
+        double init_time = TIME_IT(eigen2cv(cameras[images[idx1]->camera_id]->intrinsic, intrinsic_cv);
+                                   E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::LMEDS, 0.999, 1.0);
+                                   recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
+                                   cv2eigen(R_cv, R_estimated);
+                                   cv2eigen(t_cv, t_estimated););
+        time_cons_this_round[3] += init_time;
         r_err_this_round[3] += (R_estimated - R_gt).norm();
         t_err_this_round[3] += (t_estimated - t_gt).norm();
 
@@ -242,7 +245,7 @@ int main(int argc, char **argv)
         /* ↓------------------eigensolver estimator------------------↓ */
         // with the initial value given by RANSAC LMEDS
         eigenSolverWrapper gv_esv(y_n, z_n);
-        gv_esv.GetPose(R_estimated, t_estimated, R_estimated.transpose());
+        time_cons_this_round[5] += TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_estimated.transpose());) + init_time;
         r_err_this_round[5] += (R_estimated.transpose() - R_gt).norm();
         double tmp = (-R_estimated.transpose() * t_estimated - t_gt).norm();
         t_err_this_round[5] += tmp;
@@ -266,11 +269,11 @@ int main(int argc, char **argv)
         double *C = new double[81];
         Eigen::Matrix<double, 12, 12> X_sol;
         Matrix3d sdp_E;
-        npt_pose(npt_p2, npt_p1, C, y_n.size(), X_sol, sdp_E, true);
-        eigen2cv(sdp_E, E_cv);
-        cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-        cv2eigen(R_cv, R_estimated);
-        cv2eigen(t_cv, t_estimated);
+        time_cons_this_round[4] += TIME_IT(npt_pose(npt_p2, npt_p1, C, y_n.size(), X_sol, sdp_E, true);
+                                           eigen2cv(sdp_E, E_cv);
+                                           cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
+                                           cv2eigen(R_cv, R_estimated);
+                                           cv2eigen(t_cv, t_estimated););
         r_err_this_round[4] += (R_estimated - R_gt).norm();
         t_err_this_round[4] += (t_estimated - t_gt).norm();
         /* ↑------------------SDP on Essential Mat------------------↑ */
@@ -283,6 +286,7 @@ int main(int argc, char **argv)
         {
             r_err_this_round[i] /= sample_num;
             t_err_this_round[i] /= sample_num;
+            time_cons_this_round[i] /= sample_num;
         }
         est_vars /= sample_num;
     }
@@ -290,15 +294,15 @@ int main(int argc, char **argv)
         pnum = covisible_num;
     for (size_t i = 1; i < 6; ++i)
     {
-        appendRes(res_path, method_name[i], t_err_this_round[i], r_err_this_round[i], pnum);
+        appendRes(res_path, method_name[i], t_err_this_round[i], r_err_this_round[i], pnum, time_cons_this_round[i]);
     }
-    appendRes(res_path, method_name[0], t_err_this_round[0], r_err_this_round[0], pnum, est_vars);
+    appendRes(res_path, method_name[0], t_err_this_round[0], r_err_this_round[0], pnum, time_cons_this_round[0], est_vars);
 
     return EXIT_SUCCESS;
 }
 
 // 将结果写入csv文件
-void appendRes(const std::string &res_path, const std::string &res_name, double t, double r, int pt_num, double est_vars)
+void appendRes(const std::string &res_path, const std::string &res_name, double t, double r, int pt_num, double time, double est_vars)
 {
     std::string file_path = res_path + "/" + res_name + ".csv";
     bool file_exists = fs::exists(file_path);
@@ -307,14 +311,14 @@ void appendRes(const std::string &res_path, const std::string &res_name, double 
     if (est_vars != 0)
     {
         if (!file_exists)
-            fout << "pt_num,t,r,est_vars" << std::endl;
-        fout << pt_num << "," << t << "," << r << "," << est_vars << std::endl;
+            fout << "pt_num,t,r,cost_time,est_vars" << std::endl;
+        fout << pt_num << "," << t << "," << r << "," << time << "," << est_vars << std::endl;
     }
     else
     {
         if (!file_exists)
-            fout << "pt_num,t,r" << std::endl;
-        fout << pt_num << "," << t << "," << r << std::endl;
+            fout << "pt_num,t,r,time_cost" << std::endl;
+        fout << pt_num << "," << t << "," << r << "," << time << std::endl;
     }
     fout.close();
 }
