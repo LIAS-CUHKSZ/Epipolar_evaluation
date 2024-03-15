@@ -416,3 +416,14 @@ num_pts=(10 20 40 80 160 320 640 1280 2560 4000 -1)
 
 如果你使用了本仓库的代码，务必引用我们的论文：
 
+```
+@misc{zeng2024consistent,
+      title={Consistent and Asymptotically Statistically-Efficient Solution to Camera Motion Estimation}, 
+      author={Guangyang Zeng and Qingcheng Zeng and Xinghan Li and Biqiang Mu and Jiming Chen and Ling Shi and Junfeng Wu},
+      year={2024},
+      eprint={2403.01174},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+```
+
