@@ -210,6 +210,16 @@ The prefix of the image path in `Img1_idx` and `Img2_idx` is the index of the im
 
 If you use the code from this repository, please cite our paper:
 
+```
+@misc{zeng2024consistent,
+      title={Consistent and Asymptotically Statistically-Efficient Solution to Camera Motion Estimation}, 
+      author={Guangyang Zeng and Qingcheng Zeng and Xinghan Li and Biqiang Mu and Jiming Chen and Ling Shi and Junfeng Wu},
+      year={2024},
+      eprint={2403.01174},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+```
 
 
 # 对极几何评估工具
