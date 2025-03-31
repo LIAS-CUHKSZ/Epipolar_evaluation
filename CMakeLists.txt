@@ -1,26 +1,24 @@
 
 cmake_minimum_required(VERSION 3.16)
 project(EPP)
+
+set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
-set(CMAKE_BUILD_TYPE Release)
 
 find_package(Eigen3  REQUIRED)
 find_package(OpenCV  REQUIRED)
 find_package(SDPA  REQUIRED)
+set(opengv_DIR /home/neo/Epipolar_evaluation/src/3rdparty/opengv/build)
+find_package(opengv REQUIRED)
+set(OpenGV_LIBS /home/neo/Epipolar_evaluation/src/3rdparty/opengv/build/lib/libopengv.a)
 
-# uncomment this to remove outliers
+
 # add_definitions(-DREMOVE_OUTLIER)
 
-# you can also add config.cmake of opengv to camke prefix and use find_package(OpenGV REQUIRED)
-set(OpenGV_LIBS "D:/Desktop/epipolar_eval/opengv/lib/libopengv.a")
-include_directories("D:/Desktop/epipolar_eval/opengv/include")
-
-# path to your mumps include folder, for windows user only
-# by default, when building SDPA, the mumps lib will be built in the sdpa/mumps/build/lib folder
-# if you install SDPA from software repo, just comment this line
-include_directories("D:/Desktop/epipolar_eval/sdpa/mumps/build/include") 
-
-include_directories( ${SDPA_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} )
+include_directories( ${SDPA_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} /home/neo/Epipolar_evaluation/src/3rdparty/opengv/include )
 
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -28,7 +26,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-add_definitions("-O3 -msse2 -msse3 -march=native -std=c++17")
+add_definitions("-Og -msse2 -msse3 -march=native -std=c++17")
 set( CMAKE_CXX_FLAGS "-march=native -fopenmp" )
 include_directories(
     ./src

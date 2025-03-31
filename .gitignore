@@ -2,3 +2,4 @@ build
 dataset
 sdpa
 opengv
+.cache

@@ -1,0 +1,25 @@
+ double *npt_p1 = new double[3 * y_n.size()],
+             *npt_p2 = new double[3 * y_n.size()];
+      for (size_t i = 0; i < y_n.size(); ++i) {
+        y_n[i].normalize();
+        z_n[i].normalize();
+        npt_p1[3 * i] = y_n[i](0);
+        npt_p1[3 * i + 1] = y_n[i](1);
+        npt_p1[3 * i + 2] = y_n[i](2);
+        npt_p2[3 * i] = z_n[i](0);
+        npt_p2[3 * i + 1] = z_n[i](1);
+        npt_p2[3 * i + 2] = z_n[i](2);
+      }
+      // solve
+      double *C = new double[81];
+      Eigen::Matrix<double, 12, 12> X_sol;
+      Matrix3d sdp_E;
+      time_elapse = TIME_IT(
+          npt_pose(npt_p2, npt_p1, C, y_n.size(), X_sol, sdp_E, true);
+          eigen2cv(sdp_E, E_cv);
+          cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
+          cv2eigen(R_cv, R_estimated); cv2eigen(t_cv, t_estimated););
+      r_err_this_round = (R_estimated - R_gt).norm();
+      t_err_this_round = (t_estimated - t_gt).norm();
+      calcEval(R_lie, t_with_scale, sdp, img1path, img2path, t_err_this_round,
+               r_err_this_round, total_covisible, time_elapse);
