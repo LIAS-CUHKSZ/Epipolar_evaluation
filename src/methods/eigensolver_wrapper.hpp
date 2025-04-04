@@ -9,10 +9,10 @@
 using namespace opengv;
 using namespace Eigen;
 using namespace std;
-class eigenSolverWrapper
+class EigenWrapper
 {
 public:
-    eigenSolverWrapper(vector<Vector3d> &y1, vector<Vector3d> &z1)
+EigenWrapper(vector<Vector3d> &y1, vector<Vector3d> &z1)
     {
         y.resize(y1.size());
         z.resize(z1.size());

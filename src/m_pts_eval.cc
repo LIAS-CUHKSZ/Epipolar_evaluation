@@ -244,7 +244,7 @@ int main(int argc, char **argv)
 
         /* ↓------------------eigensolver estimator------------------↓ */
         // with the initial value given by RANSAC LMEDS
-        eigenSolverWrapper gv_esv(y_n, z_n);
+        EigenWrapper gv_esv(y_n, z_n);
         time_cons_this_round[5] += TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_estimated.transpose());) + init_time;
         r_err_this_round[5] += (R_estimated.transpose() - R_gt).norm();
         double tmp = (-R_estimated.transpose() * t_estimated - t_gt).norm();

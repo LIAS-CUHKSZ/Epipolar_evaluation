@@ -29,6 +29,7 @@
 #include <cstring>
 #include <iostream>
 #include <cmath>
+#include <opencv2/calib3d.hpp>
 #include <string>
 #include <chrono>
 
@@ -40,6 +41,7 @@
 #include "manifold_GN.hpp"
 #include "npt_pose.h"
 #include "eigensolver_wrapper.hpp"
+#include "lm_wrapper.hpp"
 #include "utils.hpp"
 
 using namespace cv;
@@ -89,7 +91,7 @@ int main(int argc, char **argv)
 	std::cout << "[" << dtset << "]eval on going, please wait..." << endl;
 
 	// accumulate the error
-	eval c_est("c_est"), e_m_gn("e_m_gn"), sdp("sdp"), pt5ransac("pt5ransac"), pt5lmeds("pt5lmeds"), egsolver("eigenSolver");
+	eval c_est("c_est"), e_m_gn("e_m_gn"), sdp("sdp"), pt5ransac("pt5ransac"), pt5lmeds("pt5lmeds"), egsolver("eigenSolver"), lm("lmsolver");
 	// the number of valid pairs, only when the number of covisible points is larger than 20
 	// and the norm of translation is bigger than 0.075m will this pair to be evaluate
 	int valid_round = 0;
@@ -103,7 +105,7 @@ int main(int argc, char **argv)
 	string dir_name = getTimeDir(dtset);
 
 	// store point pairs
-	vector<Vector3d> y_pix, z_pix, y_n, z_n;
+	vector<Vector3d> y_n, z_n;
 	vector<Point2d> y_cv_pix, z_cv_pix;
 
 	for (size_t img1 = 1; img1 < images.size(); ++img1)
@@ -125,8 +127,7 @@ int main(int argc, char **argv)
 			// Matrix3d E_ground = skew(t_gt) * R_gt;
 			Vector3d R_lie = unskew(R_gt);
 
-			y_pix.clear();
-			z_pix.clear();
+
 			y_n.clear();
 			z_n.clear();
 			y_cv_pix.clear();
@@ -138,20 +139,16 @@ int main(int argc, char **argv)
 				if (images[img2]->observations.count(yi.first)) // if the point is visible in the another image
 				{
 					point_pair p1 = yi.second, p2 = images[img2]->observations[yi.first];
-					y_pix.emplace_back(p1.pixel);
-					z_pix.emplace_back(p2.pixel);
+
 					y_cv_pix.emplace_back(Point2d(p1.pixel.x(), p1.pixel.y()));
 					z_cv_pix.emplace_back(Point2d(p2.pixel.x(), p2.pixel.y()));
 					y_n.emplace_back(p1.normalized);
 					z_n.emplace_back(p2.normalized);
 				}
 			}
-			int total_covisible = y_pix.size();
+			int total_covisible = z_n.size();
 			if (total_covisible < 200) // we focus on large number case, you can modify it to a smaller num
-			{
-				// std::cout << "[point too few,only " << y_pix.size() << " available,skip]" << endl;
 				continue;
-			}
 			++valid_round;
 
 			// temp variables to store res
@@ -170,7 +167,7 @@ int main(int argc, char **argv)
 			// @note the low res datasets have much more outlier(mis-match points pair) than high-res one
 			// you can add definition REMOVE_OUTLIER when using low-res one
 #ifdef REMOVE_OUTLIER
-			vector<Vector3d> y_pix_in, z_pix_in, y_n_in, z_n_in; // inliers
+			vector<Vector3d>  y_n_in, z_n_in; // inliers
 			vector<Point2d> y_cv_pix_in, z_cv_pix_in;
 			cv::Mat inlier_mask, intri_cv;
 			cv::eigen2cv(cameras[images[img1]->camera_id]->intrinsic, intri_cv);
@@ -179,21 +176,18 @@ int main(int argc, char **argv)
 			{
 				if (inlier_mask.at<uchar>(i, 0))
 				{
-					y_pix_in.emplace_back(y_pix[i]);
-					z_pix_in.emplace_back(z_pix[i]);
+
 					y_n_in.emplace_back(y_n[i]);
 					z_n_in.emplace_back(z_n[i]);
 					y_cv_pix_in.emplace_back(y_cv_pix[i]);
 					z_cv_pix_in.emplace_back(z_cv_pix[i]);
 				}
 			}
-			y_pix = std::move(y_pix_in);
-			z_pix = std::move(z_pix_in);
 			y_n = std::move(y_n_in);
 			z_n = std::move(z_n_in);
 			y_cv_pix = std::move(y_cv_pix_in);
 			z_cv_pix = std::move(z_cv_pix_in);
-			total_covisible = y_pix.size();
+			total_covisible = z_cv_pix.size();
 #endif // REMOVE_OUTLIER
 
 			//-------------------------------------- solve the epipolar problem here------------------------------------------
@@ -226,12 +220,20 @@ int main(int argc, char **argv)
 			/* ↑------------------RANSAC-5pt method------------------↑ */
 
 			/* ↓------------------eigensolver estimator------------------↓ */
-			eigenSolverWrapper gv_esv(y_n, z_n);
+			EigenWrapper gv_esv(y_n, z_n);
 			time_elapse = TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_r5pt.transpose());) + ransac_time;
 			r_err_this_round = (R_estimated.transpose() - R_gt).norm();
 			t_err_this_round = (-R_estimated.transpose() * t_estimated - t_gt).norm();
-			calcEval(R_lie, t_with_scale, egsolver, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
+			calcEval(R_lie, t_with_scale, egsolver, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------eigensolver estimator------------------↑ */
+
+
+			// lm solver, using 5pt as init value
+			lmSolverWrapper lm_solver(y_n, z_n);
+			time_elapse = TIME_IT(lm_solver.GetPose(R_estimated, t_estimated, R_r5pt.transpose(), t_estimated);) + ransac_time;
+			r_err_this_round = (R_estimated.transpose() - R_gt).norm();
+			t_err_this_round = (-R_estimated.transpose() * t_estimated - t_gt).norm();
+			calcEval(R_lie, t_with_scale, lm, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 
 			/* ↓------------------E Manifold GN------------------↓ */
 			Matrix3d E_MGN_Init;
@@ -290,6 +292,7 @@ int main(int argc, char **argv)
 	saveRes(e_m_gn, dir_name);
 	saveRes(pt5ransac, dir_name);
 	saveRes(pt5lmeds, dir_name);
+	saveRes(lm, dir_name);
 
 	// save method error;
 	std::ofstream file(dir_name + "/errors.txt");
@@ -300,14 +303,15 @@ int main(int argc, char **argv)
 	file << std::setw(12) << "e_m_gn: " << std::setw(10) << e_m_gn.average_time << std::setw(10) << e_m_gn.total_R_Fn << std::setw(10) << e_m_gn.total_t_cos << endl;
 	file << std::setw(12) << "pt5ransac: " << std::setw(10) << pt5ransac.average_time << std::setw(10) << pt5ransac.total_R_Fn << std::setw(10) << pt5ransac.total_t_cos << endl;
 	file << std::setw(12) << "pt5lmeds: " << std::setw(10) << pt5lmeds.average_time << std::setw(10) << pt5lmeds.total_R_Fn << std::setw(10) << pt5lmeds.total_t_cos << endl;
+	file << std::setw(12) << "lm: " << std::setw(10) << lm.average_time << std::setw(10) << lm.total_R_Fn << std::setw(10) << lm.total_t_cos << endl;
 	// if the error of c_est is the smallest of the five methods, print it
 	int flag = 0;
-	if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn && c_est.total_R_Fn < pt5ransac.total_R_Fn && c_est.total_R_Fn < pt5lmeds.total_R_Fn && c_est.total_R_Fn < egsolver.total_R_Fn)
+	if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < lm.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn && c_est.total_R_Fn < pt5ransac.total_R_Fn && c_est.total_R_Fn < pt5lmeds.total_R_Fn && c_est.total_R_Fn < egsolver.total_R_Fn)
 	{
 		file << "c_est sota R" << endl;
 		flag |= 1;
 	}
-	if (c_est.total_t_cos < sdp.total_t_cos && c_est.total_t_cos < e_m_gn.total_t_cos && c_est.total_t_cos < pt5ransac.total_t_cos && c_est.total_t_cos < egsolver.total_t_cos && c_est.total_t_cos < egsolver.total_t_cos)
+	if (c_est.total_t_cos < sdp.total_t_cos && c_est.total_t_cos < lm.total_t_cos && c_est.total_t_cos < e_m_gn.total_t_cos && c_est.total_t_cos < pt5ransac.total_t_cos && c_est.total_t_cos < egsolver.total_t_cos && c_est.total_t_cos < egsolver.total_t_cos)
 	{
 		file << "c_est sota t" << endl;
 		flag |= 2;
@@ -336,6 +340,7 @@ int main(int argc, char **argv)
 	std::cout << std::setw(15) << "[e_m_gn] R:" << std::setw(12) << e_m_gn.total_R_Fn << std::setw(12) << " t: " << e_m_gn.total_t_cos << endl;
 	std::cout << std::setw(15) << "[pt5ransac] R:" << std::setw(12) << pt5ransac.total_R_Fn << std::setw(12) << " t: " << pt5ransac.total_t_cos << endl;
 	std::cout << std::setw(15) << "[pt5lmeds] R:" << std::setw(12) << pt5lmeds.total_R_Fn << std::setw(12) << " t: " << pt5lmeds.total_t_cos << endl;
+	std::cout << std::setw(15) << "[lm] R:" << std::setw(12) << lm.total_R_Fn << std::setw(12) << " t: " << lm.total_t_cos << endl;
 	std::cout << flag << endl;
 	std::cout << "--------------------------------------" << endl;
 
