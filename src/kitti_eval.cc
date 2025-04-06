@@ -1,12 +1,13 @@
-
 #include <cstring>
 #include <iostream>
 #include <cmath>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/core.hpp>
 #include <fstream>
 #include <string>
 #include <chrono>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 #include "draw_corre.hpp"
 #include "pt3d.hpp"
@@ -117,7 +118,23 @@ int main(int argc, char **argv) {
         std::cout << "Example: " << argv[0] << " 00  eval" << std::endl;
         return EXIT_FAILURE;
     }
-    
+
+    // Load configuration using yaml-cpp
+    YAML::Node config = YAML::LoadFile("../config.yaml");
+    if (!config)
+    {
+        std::cerr << "Failed to open configuration file: ../config.yaml" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    double t_min = config["config"]["kitti"]["t_min"].as<double>();
+    double r_min = config["config"]["kitti"]["r_min"].as<double>();
+    int pts_min = config["config"]["kitti"]["pts_min"].as<int>();
+    bool use_lie = config["config"]["kitti"]["use_lie"].as<bool>();
+
+    std::cout << "Configuration for kitti loaded:" << std::endl;
+    std::cout << "t_min: " << t_min << ", r_min: " << r_min << ", pts_min: " << pts_min << ", use_lie: " << use_lie << std::endl;
+
     string sequenceNum(argv[1]);
     string eval_dir(argv[2]);
     bool debug_img = false;
@@ -170,8 +187,7 @@ int main(int argc, char **argv) {
         const PointCorrespondence& corr = correspondences[i];
         
         // Skip if too few points
-        if (corr.points1.size() < 20) {
-            cout << "Skipping pair " << corr.img1_idx << "-" << corr.img2_idx << ": too few points" << endl;
+        if (corr.points1.size() < pts_min) {
             continue;
         }
         
@@ -182,8 +198,8 @@ int main(int argc, char **argv) {
         Vector3d t_gt = -R_gt * gt_pose.block<3, 1>(0, 3);
         Vector3d t_with_scale = t_gt;
         
-        // Skip if translation is too small
-        if (t_with_scale.norm() < 0.1 || R_lie.norm() < 0.005) {
+        // Skip if translation or rotation is too small
+        if (t_with_scale.norm() < t_min || R_lie.norm() < r_min) {
             continue;
         }
         
@@ -241,8 +257,7 @@ int main(int argc, char **argv) {
         /* ↓------------------consistent estimator------------------↓ */
         ConsistentEst est(K);
         time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix););
-        r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-        t_err_this_round = 1 - t_estimated.normalized().dot(t_gt);
+        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
         calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
         if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
             DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, false);
@@ -260,15 +275,13 @@ int main(int argc, char **argv) {
                                      cv2eigen(R_cv, R_r5pt);
                                      cv2eigen(t_cv, t_r5pt););
         time_elapse = ransac_time;
-        r_err_this_round = unskew(R_r5pt.transpose()*R_gt).norm();
-        t_err_this_round =  1 - t_r5pt.normalized().dot(t_gt);
+        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_r5pt, t_r5pt, use_lie); // Use calcErr
         calcEval(R_lie, t_with_scale, pt5ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
         /* ↑------------------RANSAC-5pt method------------------↑ */
 
         EigenWrapper gv_esv(y_n, z_n);
         time_elapse = TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_r5pt);) + ransac_time;
-        r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-        t_err_this_round = 1-t_gt.dot(t_estimated.normalized());
+        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
         calcEval(R_lie, t_with_scale, egsolver, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
         /* ↑------------------eigensolver estimator------------------↑ */
 
@@ -276,8 +289,7 @@ int main(int argc, char **argv) {
         // lm solver, using 5pt as init value
         lmSolverWrapper lm_solver(y_n, z_n);
         time_elapse = TIME_IT(lm_solver.GetPose(R_estimated, t_estimated, R_r5pt, t_r5pt);) + ransac_time;
-        r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-        t_err_this_round = 1-t_gt.dot(t_estimated.normalized());
+        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
         calcEval(R_lie, t_with_scale, lm, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 
         /* ↓------------------E Manifold GN------------------↓ */
@@ -285,8 +297,7 @@ int main(int argc, char **argv) {
         cv2eigen(E_cv, E_MGN_Init); // use RANSAC-5pt result as initial value
         ManifoldGN MGN(K);
         time_elapse = TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n, E_MGN_Init);) + ransac_time;
-        r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-        t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
+        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
         calcEval(R_lie, t_with_scale, e_m_gn, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
         /* ↑------------------E Manifold GN------------------↑ */
 
@@ -313,8 +324,7 @@ int main(int argc, char **argv) {
                               cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
                               cv2eigen(R_cv, R_estimated);
                               cv2eigen(t_cv, t_estimated););
-        r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-        t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
+        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
         calcEval(R_lie, t_with_scale, sdp, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
         /* ↑------------------SDP on Essential Mat------------------↑ */
         
@@ -329,7 +339,6 @@ int main(int argc, char **argv) {
     saveRes(sdp, dir_name);
     saveRes(egsolver, dir_name);
     saveRes(e_m_gn, dir_name);
-    saveRes(pt5ransac, dir_name);
     saveRes(lm, dir_name);
 
     // save method error;
@@ -344,19 +353,30 @@ int main(int argc, char **argv) {
     
     // if the error of c_est is the smallest of the five methods, print it
     int flag = 0;
-    if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < lm.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn && c_est.total_R_Fn < pt5ransac.total_R_Fn  && c_est.total_R_Fn < egsolver.total_R_Fn)
+    if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < lm.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn  && c_est.total_R_Fn < egsolver.total_R_Fn)
     {
-        file << "c_est sota R" << endl;
         flag |= 1;
     }
-    if (c_est.total_t_cos < sdp.total_t_cos && c_est.total_t_cos < lm.total_t_cos && c_est.total_t_cos < e_m_gn.total_t_cos && c_est.total_t_cos < pt5ransac.total_t_cos && c_est.total_t_cos < egsolver.total_t_cos && c_est.total_t_cos < egsolver.total_t_cos)
+    if (c_est.total_t_cos < sdp.total_t_cos && c_est.total_t_cos < lm.total_t_cos && c_est.total_t_cos < e_m_gn.total_t_cos  && c_est.total_t_cos < egsolver.total_t_cos)
     {
-        file << "c_est sota t" << endl;
         flag |= 2;
     }
+
     if (flag == 3)
     {
         file << "c_est best!!!" << endl;
+    }
+    else if (flag == 1)
+    {
+        file << "c_est sota R" << endl;
+    }
+    else if (flag == 2)
+    {
+        file << "c_est sota t" << endl;
+    }
+    else
+    {
+        file << "no best" << endl;
     }
     file.close();
 
@@ -368,7 +388,7 @@ int main(int argc, char **argv) {
         eval_file.open(filename, std::ios::app);
     else
         eval_file.open(filename);
-    eval_file << flag << "  " << "kitti" + sequenceNum << endl;
+    eval_file << flag << "  " << "kitti" + sequenceNum + eval_dir + (use_lie ? " true" : " false") << endl;
     eval_file.close();
 
     std::cout << "----------------" << endl;

@@ -1,11 +1,12 @@
-kitti:
-  t_min: 0.4
-  r_min: 0.005
-  pts_min: 400
-  use_lie: true
+config:
+  kitti:
+    t_min: 0.6
+    r_min: 0.01
+    pts_min: 400
+    use_lie: true
 
-eth3d:
-  t_min: 0.4
-  r_min: 0.005
-  pts_min: 400
-  use_lie: true
+  eth3d:
+    t_min: 0.1
+    r_min: 0.005
+    pts_min: 400
+    use_lie: true

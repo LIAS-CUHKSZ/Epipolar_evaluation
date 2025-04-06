@@ -30,8 +30,10 @@
 #include <iostream>
 #include <cmath>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/core.hpp>
 #include <string>
 #include <chrono>
+#include <yaml-cpp/yaml.h>
 
 #include "draw_corre.hpp"
 #include "cameras.h"
@@ -66,9 +68,23 @@ int main(int argc, char **argv)
 		std::cout << "evaluate all img pairs" << std::endl;
 	string cameras_txt_path = "../dataset/" + dtset + "/dslr_calibration_undistorted/cameras.txt";
 	string images_txt_path = "../dataset/" + dtset + "/dslr_calibration_undistorted/images.txt";
-	
 
-	
+	// Load configuration using yaml-cpp
+	YAML::Node config = YAML::LoadFile("../config.yaml");
+	if (!config)
+	{
+		std::cerr << "Failed to open configuration file: ../config.yaml" << std::endl;
+		return EXIT_FAILURE;
+	}
+
+	double t_min = config["config"]["eth3d"]["t_min"].as<double>();
+	double r_min = config["config"]["eth3d"]["r_min"].as<double>();
+	int pts_min = config["config"]["eth3d"]["pts_min"].as<int>();
+	bool use_lie = config["config"]["eth3d"]["use_lie"].as<bool>();
+
+	std::cout << "Configuration for eth3d loaded:" << std::endl;
+	std::cout << "t_min: " << t_min << ", r_min: " << r_min << ", pts_min: " << pts_min << ", use_lie: " << use_lie << std::endl;
+
 	// Load cameras (indexed by: camera_id).
 	ColmapCameraPtrMap cameras;
 	bool success = ReadColmapCameras(cameras_txt_path, &cameras);
@@ -123,11 +139,12 @@ int main(int argc, char **argv)
 			Matrix3d R_gt = ((images[img1]->global_T_image.linear().transpose() * images[img2]->global_T_image.linear()).cast<double>()).transpose();
 			Vector3d t_gt = -R_gt * R1 * (images[img2]->global_T_image.translation() - images[img1]->global_T_image.translation()).cast<double>();
 			Vector3d t_with_scale = t_gt;
-			if (t_with_scale.norm() < 0.075) // two-view geometry cannot evaluate the translation when it is too small
+			Vector3d R_lie = unskew(R_gt);
+			if (t_with_scale.norm() < t_min || R_lie.norm() < r_min) // two-view geometry cannot evaluate the translation when it is too small
 				continue;
 			t_gt.normalize(); // only the bearing vector is needed
 			// Matrix3d E_ground = skew(t_gt) * R_gt;
-			Vector3d R_lie = unskew(R_gt);
+			
 
 
 			y_n.clear();
@@ -149,7 +166,7 @@ int main(int argc, char **argv)
 				}
 			}
 			int total_covisible = z_n.size();
-			if (total_covisible < 200) // we focus on large number case, you can modify it to a smaller num
+			if (total_covisible < pts_min) // we focus on large number case, you can modify it to a smaller num
 				continue;
 			++valid_round;
 
@@ -197,8 +214,7 @@ int main(int argc, char **argv)
 			/* ↓------------------consistent estimator------------------↓ */
 			ConsistentEst est(cameras[images[img1]->camera_id]->intrinsic);
 			time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix, 1););
-			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
+			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
 			calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
 			if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
 				DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, false);
@@ -218,16 +234,14 @@ int main(int argc, char **argv)
 			time_elapse = ransac_time;
 			R_estimated = R_r5pt;
 			t_estimated = t_r5pt;
-			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
+			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
 			calcEval(R_lie, t_with_scale, pt5ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------RANSAC-5pt method------------------↑ */
 
 			/* ↓------------------eigensolver estimator------------------↓ */
 			EigenWrapper gv_esv(y_n, z_n);
 			time_elapse = TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_r5pt);) + ransac_time;
-			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
+			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
 			calcEval(R_lie, t_with_scale, egsolver, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------eigensolver estimator------------------↑ */
 
@@ -235,8 +249,7 @@ int main(int argc, char **argv)
 			// lm solver, using 5pt as init value
 			lmSolverWrapper lm_solver(y_n, z_n);
 			time_elapse = TIME_IT(lm_solver.GetPose(R_estimated, t_estimated, R_r5pt, t_r5pt);) + ransac_time;
-			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
+			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
 			calcEval(R_lie, t_with_scale, lm, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 
 			/* ↓------------------E Manifold GN------------------↓ */
@@ -244,20 +257,10 @@ int main(int argc, char **argv)
 			cv2eigen(E_cv, E_MGN_Init); // use RANSAC-5pt result as initial value
 			ManifoldGN MGN(cameras[images[img1]->camera_id]->intrinsic);
 			time_elapse = TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n, E_MGN_Init);) + ransac_time;
-			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
+			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
 			calcEval(R_lie, t_with_scale, e_m_gn, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------E Manifold GN------------------↑ */
 
-			/* ↓------------------LMEDS-5pt method------------------↓ */
-			time_elapse = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::LMEDS, 0.999, 1.0);
-								  recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-								  cv2eigen(R_cv, R_estimated);
-								  cv2eigen(t_cv, t_estimated););
-			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
-			calcEval(R_lie, t_with_scale, pt5lmeds, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-			/* ↑------------------LMEDS-5pt method------------------↑ */
 
 			/* ↓------------------SDP on Essential Mat------------------↓ */
 			// prepare data
@@ -282,8 +285,7 @@ int main(int argc, char **argv)
 								  cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
 								  cv2eigen(R_cv, R_estimated);
 								  cv2eigen(t_cv, t_estimated););
-			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
-			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
+			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
 			calcEval(R_lie, t_with_scale, sdp, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------SDP on Essential Mat------------------↑ */
 		}
@@ -294,8 +296,6 @@ int main(int argc, char **argv)
 	saveRes(sdp, dir_name);
 	saveRes(egsolver, dir_name);
 	saveRes(e_m_gn, dir_name);
-	saveRes(pt5ransac, dir_name);
-	saveRes(pt5lmeds, dir_name);
 	saveRes(lm, dir_name);
 
 	// save method error;
@@ -305,36 +305,45 @@ int main(int argc, char **argv)
 	file << std::setw(12) << "sdp: " << std::setw(10) << sdp.average_time << std::setw(10) << sdp.total_R_Fn << std::setw(10) << sdp.total_t_cos << endl;
 	file << std::setw(12) << "egsolver: " << std::setw(10) << egsolver.average_time << std::setw(10) << egsolver.total_R_Fn << std::setw(10) << egsolver.total_t_cos << endl;
 	file << std::setw(12) << "e_m_gn: " << std::setw(10) << e_m_gn.average_time << std::setw(10) << e_m_gn.total_R_Fn << std::setw(10) << e_m_gn.total_t_cos << endl;
-	file << std::setw(12) << "pt5ransac: " << std::setw(10) << pt5ransac.average_time << std::setw(10) << pt5ransac.total_R_Fn << std::setw(10) << pt5ransac.total_t_cos << endl;
-	file << std::setw(12) << "pt5lmeds: " << std::setw(10) << pt5lmeds.average_time << std::setw(10) << pt5lmeds.total_R_Fn << std::setw(10) << pt5lmeds.total_t_cos << endl;
 	file << std::setw(12) << "lm: " << std::setw(10) << lm.average_time << std::setw(10) << lm.total_R_Fn << std::setw(10) << lm.total_t_cos << endl;
 	// if the error of c_est is the smallest of the five methods, print it
 	int flag = 0;
-	if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < lm.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn && c_est.total_R_Fn < pt5ransac.total_R_Fn && c_est.total_R_Fn < pt5lmeds.total_R_Fn && c_est.total_R_Fn < egsolver.total_R_Fn)
-	{
-		file << "c_est sota R" << endl;
-		flag |= 1;
-	}
-	if (c_est.total_t_cos < sdp.total_t_cos && c_est.total_t_cos < lm.total_t_cos && c_est.total_t_cos < e_m_gn.total_t_cos && c_est.total_t_cos < pt5ransac.total_t_cos && c_est.total_t_cos < egsolver.total_t_cos && c_est.total_t_cos < egsolver.total_t_cos)
-	{
-		file << "c_est sota t" << endl;
-		flag |= 2;
-	}
-	if (flag == 3)
-	{
-		file << "c_est best!!!" << endl;
-	}
-	file.close();
+    if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < lm.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn  && c_est.total_R_Fn < egsolver.total_R_Fn)
+    {
+        flag |= 1;
+    }
+    if (c_est.total_t_cos < sdp.total_t_cos && c_est.total_t_cos < lm.total_t_cos && c_est.total_t_cos < e_m_gn.total_t_cos  && c_est.total_t_cos < egsolver.total_t_cos)
+    {
+        flag |= 2;
+    }
+    
+    if (flag == 3)
+    {
+        file << "c_est best!!!" << endl;
+    }
+    else if (flag == 1)
+    {
+        file << "c_est sota R" << endl;
+    }
+    else if (flag == 2)
+    {
+        file << "c_est sota t" << endl;
+    }
+    else
+    {
+        file << "no best" << endl;
+    }
+    file.close();
 
 	std::string filename = "best_estimation.txt";
 	std::ofstream eval_file;
-	// save the best method
-	std::ifstream infile(filename);
-	if (infile.good())
-		eval_file.open(filename, std::ios::app);
-	else
-		eval_file.open(filename);
-	eval_file << flag << "  " << dtset << endl;
+    // save the best method
+    std::ifstream infile(filename);
+    if (infile.good())
+        eval_file.open(filename, std::ios::app);
+    else
+        eval_file.open(filename);
+	eval_file << flag << "  " << dtset + (use_lie ? " lie" : " eu") << endl;
 	eval_file.close();
 
 	std::cout << "----------------" << endl;
@@ -343,7 +352,6 @@ int main(int argc, char **argv)
 	std::cout << std::setw(15) << "[egsolver] R:" << std::setw(12) << egsolver.total_R_Fn << std::setw(12) << " t: " << egsolver.total_t_cos << endl;
 	std::cout << std::setw(15) << "[e_m_gn] R:" << std::setw(12) << e_m_gn.total_R_Fn << std::setw(12) << " t: " << e_m_gn.total_t_cos << endl;
 	std::cout << std::setw(15) << "[pt5ransac] R:" << std::setw(12) << pt5ransac.total_R_Fn << std::setw(12) << " t: " << pt5ransac.total_t_cos << endl;
-	std::cout << std::setw(15) << "[pt5lmeds] R:" << std::setw(12) << pt5lmeds.total_R_Fn << std::setw(12) << " t: " << pt5lmeds.total_t_cos << endl;
 	std::cout << std::setw(15) << "[lm] R:" << std::setw(12) << lm.total_R_Fn << std::setw(12) << " t: " << lm.total_t_cos << endl;
 	std::cout << flag << endl;
 	std::cout << "--------------------------------------" << endl;

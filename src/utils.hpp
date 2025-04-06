@@ -171,29 +171,16 @@ string GetFileName(string path)
 
 void calcErr(double& t_err, double& r_err, Matrix3d R_gt, Vector3d t_gt, Matrix3d R_estimated, Vector3d t_estimated, bool lie_flag)
 {
+    t_err = 0;
+    r_err = 0;
     if(lie_flag) // use manifold norm
     {
-        t_err += 1 - t_gt.dot(t_estimated);
-        r_err += unskew(R_estimated.transpose()*R_gt).norm();
+        t_err = 1 - t_gt.dot(t_estimated);
+        r_err = unskew(R_estimated.transpose()*R_gt).norm();
     }
     else // use Euclidean norm
     {
-        t_err += (t_estimated - t_gt).norm();
-        r_err += (R_estimated - R_gt).norm();
+        t_err = (t_estimated - t_gt).norm();
+        r_err = (R_estimated - R_gt).norm();
     }
 }
-
-// std::cout << valid_round << "--------" << endl;
-// std::cout << "[R_est]\n"
-// 		  << R_estimated << endl;
-// std::cout << "[GT_R]\n"
-// 		  << R_gt << endl;
-// std::cout << " [E_est]\n"
-// 		  << sdp_E << endl;
-// std::cout << "[E_GT]\n"
-// 		  << E_ground << endl;
-
-// std::cout << "[T_est] " << t_estimated.transpose() << endl;
-// std::cout << "[GT_T] " << t_gt.transpose() << endl;
-// std::cout << "[scale T]" << t_with_scale.transpose() << endl;
-// std::cout << " [norm of T]" << t_with_scale.norm() << endl;

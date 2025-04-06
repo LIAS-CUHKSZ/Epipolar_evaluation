@@ -1,4 +1,3 @@
-
 #include <cstring>
 #include <iostream>
 #include <cmath>
@@ -8,6 +7,8 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <opencv2/core.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include "cameras.h"
 #include "images.h"
@@ -32,6 +33,23 @@ int main(int argc, char **argv)
         std::cout << "Usage: " << argv[0] << "  <datasetname>  <num_pts>  <pair_num1>  <pair_num2>  <sample_num>" << std::endl;
         return EXIT_FAILURE;
     }
+
+    // Load configuration using yaml-cpp
+    YAML::Node config = YAML::LoadFile("../config.yaml");
+    if (!config)
+    {
+        std::cerr << "Failed to open configuration file: ../config.yaml" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    double t_min = config["config"]["eth3d"]["t_min"].as<double>();
+    double r_min = config["config"]["eth3d"]["r_min"].as<double>();
+    int pts_min = config["config"]["eth3d"]["pts_min"].as<int>();
+    bool use_lie = config["config"]["eth3d"]["use_lie"].as<bool>();
+
+    std::cout << "Configuration for eth3d loaded:" << std::endl;
+    std::cout << "t_min: " << t_min << ", r_min: " << r_min << ", pts_min: " << pts_min << ", use_lie: " << use_lie << std::endl;
+
     string dtset(argv[1]), pts_str(argv[2]), imgidx1(argv[3]), imgidx2(argv[4]), spn(argv[5]);
     if (imgidx1 == imgidx2)
     {
@@ -100,11 +118,6 @@ int main(int argc, char **argv)
         }
     }
     int covisible_num = yptmp.size();
-    if (covisible_num < 200)
-    {
-        std::cout << "Error: too few covisible points.Exit" << std::endl;
-        return EXIT_FAILURE;
-    }
     if (covisible_num < pnum)
     {
         std::cout << "Warning: covisible points are less than the given target" << std::endl;
@@ -143,16 +156,16 @@ int main(int argc, char **argv)
     covisible_num = y_pix.size();
 #endif // REMOVE_OUTLIER
 
-    // compute the ground truth relative pose
+    // Compute the ground truth relative pose
     Matrix3d R1 = images[idx1]->global_T_image.linear().transpose().cast<double>();
     Matrix3d R_gt = ((images[idx1]->global_T_image.linear().transpose() * images[idx2]->global_T_image.linear()).cast<double>()).transpose();
     Vector3d t_gt = -R_gt * R1 * (images[idx2]->global_T_image.translation() - images[idx1]->global_T_image.translation()).cast<double>();
-    if (t_gt.norm() < 0.075) // two-view geometry cannot evaluate the translation when it is too small
+    if (t_gt.norm() < t_min || unskew(R_gt).norm() < r_min) // Apply thresholds
     {
-        std::cout << "Error: translation too small.Exit" << std::endl;
+        std::cout << "Error: translation too small or rotation too small. Exit" << std::endl;
         return EXIT_FAILURE;
     }
-    t_gt.normalize(); // only the bearing vector is needed
+    t_gt.normalize(); // Only the bearing vector is needed
 
     // temp variables to store res
     Matrix3d R_estimated;
@@ -206,17 +219,14 @@ int main(int argc, char **argv)
         ConsistentEst est(cameras[images[idx1]->camera_id]->intrinsic);
         time_cons_this_round[0] += TIME_IT(
             est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix););
-        r_err_this_round[0] += unskew(R_estimated.transpose()*R_gt).norm();
-        t_err_this_round[0] += 1- (t_estimated.dot(t_gt));
+        calcErr(t_err_this_round[0], r_err_this_round[0], R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
         est_vars += est.var_est;
-
         /* ↑------------------consistent estimator------------------↑ */
 
         /* ↓------------------E Manifold GN------------------↓ */
         ManifoldGN MGN(cameras[images[idx1]->camera_id]->intrinsic);
         time_cons_this_round[1] += TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n););
-        r_err_this_round[1] +=unskew(R_estimated.transpose()*R_gt).norm();
-        t_err_this_round[1] +=1- (t_estimated.dot(t_gt));
+        calcErr(t_err_this_round[1], r_err_this_round[1], R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
         /* ↑------------------E Manifold GN------------------↑ */
 
         Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
@@ -273,8 +283,7 @@ int main(int argc, char **argv)
                                            cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
                                            cv2eigen(R_cv, R_estimated);
                                            cv2eigen(t_cv, t_estimated););
-        r_err_this_round[4] += unskew(R_estimated.transpose()*R_gt).norm();
-        t_err_this_round[4] += 1- (t_estimated.dot(t_gt));
+        calcErr(t_err_this_round[4], r_err_this_round[4], R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
         /* ↑------------------SDP on Essential Mat------------------↑ */
     }
 
