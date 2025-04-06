@@ -66,7 +66,9 @@ int main(int argc, char **argv)
 		std::cout << "evaluate all img pairs" << std::endl;
 	string cameras_txt_path = "../dataset/" + dtset + "/dslr_calibration_undistorted/cameras.txt";
 	string images_txt_path = "../dataset/" + dtset + "/dslr_calibration_undistorted/images.txt";
+	
 
+	
 	// Load cameras (indexed by: camera_id).
 	ColmapCameraPtrMap cameras;
 	bool success = ReadColmapCameras(cameras_txt_path, &cameras);
@@ -194,9 +196,9 @@ int main(int argc, char **argv)
 
 			/* ↓------------------consistent estimator------------------↓ */
 			ConsistentEst est(cameras[images[img1]->camera_id]->intrinsic);
-			time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix,5););
-			r_err_this_round = (R_estimated - R_gt).norm();
-			t_err_this_round = (t_estimated - t_gt).norm();
+			time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix, 1););
+			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
+			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
 			calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
 			if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
 				DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, false);
@@ -214,25 +216,27 @@ int main(int argc, char **argv)
 										 cv2eigen(R_cv, R_r5pt);
 										 cv2eigen(t_cv, t_r5pt););
 			time_elapse = ransac_time;
-			r_err_this_round = (R_r5pt - R_gt).norm();
-			t_err_this_round = (t_r5pt - t_gt).norm();
+			R_estimated = R_r5pt;
+			t_estimated = t_r5pt;
+			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
+			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
 			calcEval(R_lie, t_with_scale, pt5ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------RANSAC-5pt method------------------↑ */
 
 			/* ↓------------------eigensolver estimator------------------↓ */
 			EigenWrapper gv_esv(y_n, z_n);
-			time_elapse = TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_r5pt.transpose());) + ransac_time;
-			r_err_this_round = (R_estimated.transpose() - R_gt).norm();
-			t_err_this_round = (-R_estimated.transpose() * t_estimated - t_gt).norm();
+			time_elapse = TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_r5pt);) + ransac_time;
+			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
+			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
 			calcEval(R_lie, t_with_scale, egsolver, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------eigensolver estimator------------------↑ */
 
 
 			// lm solver, using 5pt as init value
 			lmSolverWrapper lm_solver(y_n, z_n);
-			time_elapse = TIME_IT(lm_solver.GetPose(R_estimated, t_estimated, R_r5pt.transpose(), t_estimated);) + ransac_time;
-			r_err_this_round = (R_estimated.transpose() - R_gt).norm();
-			t_err_this_round = (-R_estimated.transpose() * t_estimated - t_gt).norm();
+			time_elapse = TIME_IT(lm_solver.GetPose(R_estimated, t_estimated, R_r5pt, t_r5pt);) + ransac_time;
+			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
+			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
 			calcEval(R_lie, t_with_scale, lm, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 
 			/* ↓------------------E Manifold GN------------------↓ */
@@ -240,8 +244,8 @@ int main(int argc, char **argv)
 			cv2eigen(E_cv, E_MGN_Init); // use RANSAC-5pt result as initial value
 			ManifoldGN MGN(cameras[images[img1]->camera_id]->intrinsic);
 			time_elapse = TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n, E_MGN_Init);) + ransac_time;
-			r_err_this_round = (R_estimated - R_gt).norm();
-			t_err_this_round = (t_estimated - t_gt).norm();
+			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
+			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
 			calcEval(R_lie, t_with_scale, e_m_gn, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------E Manifold GN------------------↑ */
 
@@ -250,8 +254,8 @@ int main(int argc, char **argv)
 								  recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
 								  cv2eigen(R_cv, R_estimated);
 								  cv2eigen(t_cv, t_estimated););
-			r_err_this_round = (R_estimated - R_gt).norm();
-			t_err_this_round = (t_estimated - t_gt).norm();
+			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
+			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
 			calcEval(R_lie, t_with_scale, pt5lmeds, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------LMEDS-5pt method------------------↑ */
 
@@ -278,8 +282,8 @@ int main(int argc, char **argv)
 								  cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
 								  cv2eigen(R_cv, R_estimated);
 								  cv2eigen(t_cv, t_estimated););
-			r_err_this_round = (R_estimated - R_gt).norm();
-			t_err_this_round = (t_estimated - t_gt).norm();
+			r_err_this_round = unskew(R_estimated.transpose()*R_gt).norm();
+			t_err_this_round = 1- (t_estimated.normalized().dot(t_gt));
 			calcEval(R_lie, t_with_scale, sdp, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
 			/* ↑------------------SDP on Essential Mat------------------↑ */
 		}

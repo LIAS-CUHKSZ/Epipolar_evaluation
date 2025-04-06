@@ -137,7 +137,6 @@ private:
                                          g * e3.transpose() * (scale * par_t_alpha + par_ki_alpha * t_curr)) / (h * h);
             }
 
-            Vector<double, 5> init = Vector<double, 5>::Zero();
             VectorXd z(2 * m, 1);
             for (int i = 0; i < m; i++)
                 z.block<2, 1>(2 * i, 0) << z_h[i](0), z_h[i](1);

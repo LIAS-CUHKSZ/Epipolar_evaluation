@@ -28,7 +28,7 @@ EigenWrapper(vector<Vector3d> &y1, vector<Vector3d> &z1)
 
         relative_pose::CentralRelativeAdapter adapter(y, z, R_init);
         eigensolverOutput_t output;
-        output.rotation = R_init;
+        output.rotation = R_init.transpose();
         relative_pose::eigensolver(adapter, output);
 
         // --------- use sac ------------
@@ -55,8 +55,8 @@ EigenWrapper(vector<Vector3d> &y1, vector<Vector3d> &z1)
 
         // R_est = optimizedModel.rotation;
         // t_est = optimizedModel.translation.normalized();
-        R_est = output.rotation;
-        t_est = output.translation.normalized();
+        R_est = output.rotation.transpose();
+        t_est = -R_est*output.translation.normalized();
     }
 
 private:

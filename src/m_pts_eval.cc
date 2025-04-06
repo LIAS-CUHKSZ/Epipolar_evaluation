@@ -206,8 +206,8 @@ int main(int argc, char **argv)
         ConsistentEst est(cameras[images[idx1]->camera_id]->intrinsic);
         time_cons_this_round[0] += TIME_IT(
             est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix););
-        r_err_this_round[0] += (R_estimated - R_gt).norm();
-        t_err_this_round[0] += (t_estimated - t_gt).norm();
+        r_err_this_round[0] += unskew(R_estimated.transpose()*R_gt).norm();
+        t_err_this_round[0] += 1- (t_estimated.dot(t_gt));
         est_vars += est.var_est;
 
         /* ↑------------------consistent estimator------------------↑ */
@@ -215,8 +215,8 @@ int main(int argc, char **argv)
         /* ↓------------------E Manifold GN------------------↓ */
         ManifoldGN MGN(cameras[images[idx1]->camera_id]->intrinsic);
         time_cons_this_round[1] += TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n););
-        r_err_this_round[1] += (R_estimated - R_gt).norm();
-        t_err_this_round[1] += (t_estimated - t_gt).norm();
+        r_err_this_round[1] +=unskew(R_estimated.transpose()*R_gt).norm();
+        t_err_this_round[1] +=1- (t_estimated.dot(t_gt));
         /* ↑------------------E Manifold GN------------------↑ */
 
         Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
@@ -228,8 +228,8 @@ int main(int argc, char **argv)
             recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
             cv2eigen(R_cv, R_estimated);
             cv2eigen(t_cv, t_estimated););
-        r_err_this_round[2] += (R_estimated - R_gt).norm();
-        t_err_this_round[2] += (t_estimated - t_gt).norm();
+        r_err_this_round[2] += unskew(R_estimated.transpose()*R_gt).norm();
+        t_err_this_round[2] += 1- (t_estimated.dot(t_gt));
 
         double init_time = TIME_IT(eigen2cv(cameras[images[idx1]->camera_id]->intrinsic, intrinsic_cv);
                                    E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::LMEDS, 0.999, 1.0);
@@ -237,8 +237,8 @@ int main(int argc, char **argv)
                                    cv2eigen(R_cv, R_estimated);
                                    cv2eigen(t_cv, t_estimated););
         time_cons_this_round[3] += init_time;
-        r_err_this_round[3] += (R_estimated - R_gt).norm();
-        t_err_this_round[3] += (t_estimated - t_gt).norm();
+        r_err_this_round[3] += unskew(R_estimated.transpose()*R_gt).norm();
+        t_err_this_round[3] += 1- (t_estimated.dot(t_gt));
 
         /* ↑------------------RANSAC method------------------↑ */
 
@@ -246,9 +246,8 @@ int main(int argc, char **argv)
         // with the initial value given by RANSAC LMEDS
         EigenWrapper gv_esv(y_n, z_n);
         time_cons_this_round[5] += TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_estimated.transpose());) + init_time;
-        r_err_this_round[5] += (R_estimated.transpose() - R_gt).norm();
-        double tmp = (-R_estimated.transpose() * t_estimated - t_gt).norm();
-        t_err_this_round[5] += tmp;
+        r_err_this_round[5] += unskew(R_estimated.transpose()*R_gt).norm();
+        t_err_this_round[5] += 1- (t_estimated.dot(t_gt));
         /* ↑------------------eigensolver estimator------------------↑ */
 
         /* ↓------------------SDP on Essential Mat------------------↓ */
@@ -274,8 +273,8 @@ int main(int argc, char **argv)
                                            cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
                                            cv2eigen(R_cv, R_estimated);
                                            cv2eigen(t_cv, t_estimated););
-        r_err_this_round[4] += (R_estimated - R_gt).norm();
-        t_err_this_round[4] += (t_estimated - t_gt).norm();
+        r_err_this_round[4] += unskew(R_estimated.transpose()*R_gt).norm();
+        t_err_this_round[4] += 1- (t_estimated.dot(t_gt));
         /* ↑------------------SDP on Essential Mat------------------↑ */
     }
 

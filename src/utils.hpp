@@ -118,7 +118,7 @@ void saveRes(eval &evals, std::string time_dir)
     evals.average_time /= evals.time.size();
     for (size_t i = 0; i < evals.R_err_per_round.size(); ++i)
     {
-        file << i + 1 << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << "," << evals.t_gt_norm[i] << "," << evals.R_gt[i].transpose();
+        file << i + 1 << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << "," << evals.t_gt_norm[i] << "," << evals.R_gt[i].norm();
         // if (evals.noise[i] != 0)
         //     file << "," << evals.noise[i];
         file << std::endl;
@@ -167,6 +167,20 @@ string GetFileName(string path)
     if (pos != std::string::npos)
         path.erase(0, pos + 1);
     return path;
+}
+
+void calcErr(double& t_err, double& r_err, Matrix3d R_gt, Vector3d t_gt, Matrix3d R_estimated, Vector3d t_estimated, bool lie_flag)
+{
+    if(lie_flag) // use manifold norm
+    {
+        t_err += 1 - t_gt.dot(t_estimated);
+        r_err += unskew(R_estimated.transpose()*R_gt).norm();
+    }
+    else // use Euclidean norm
+    {
+        t_err += (t_estimated - t_gt).norm();
+        r_err += (R_estimated - R_gt).norm();
+    }
 }
 
 // std::cout << valid_round << "--------" << endl;

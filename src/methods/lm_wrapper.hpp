@@ -25,11 +25,11 @@ public:
                Vector3d t_init) {
 
     relative_pose::CentralRelativeAdapter adapter(y, z);
-    adapter.sett12(t_init);
-    adapter.setR12(R_init);
+    adapter.sett12(-R_init.transpose()*t_init);
+    adapter.setR12(R_init.transpose());
     auto res = relative_pose::optimize_nonlinear(adapter);
-    R_est = res.block(0, 0, 3, 3);
-    t_est = res.block(0, 3, 3, 1).normalized();
+    R_est = res.block(0, 0, 3, 3).transpose();
+    t_est = -R_est*res.block(0, 3, 3, 1).normalized();
     // auto res = relative_pose::sevenpt(adapter);
     // R_est = res.block(0, 0, 3, 3);
     // t_est = res.block(0, 3, 3, 1).normalized();

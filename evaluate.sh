@@ -23,10 +23,10 @@ do
     subdir_name=$(basename "$subdir")
 
     # Check if the program count is less than the max parallel
-    if [ $count -lt  $max_parallel]
+    if [ $count -lt $max_parallel ]
     then
         # Start a new program and increment the count
-        ./epipolar_eval.exe "$subdir_name" "$windows_size" &
+        ./epipolar_eval "$subdir_name" "$windows_size" &
         count=$((count+1))
     else
         # Wait for a program to finish and decrement the count
@@ -34,7 +34,7 @@ do
         count=$((count-1))
 
         # Start a new program and increment the count
-        ./epipolar_eval.exe "$subdir_name" "$windows_size" &
+        ./epipolar_eval "$subdir_name" "$windows_size" &
         count=$((count+1))
     fi
 done

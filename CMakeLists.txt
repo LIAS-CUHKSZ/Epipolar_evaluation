@@ -54,6 +54,12 @@ add_executable(epipolar_eval src/eval.cc
 )
 target_link_libraries(epipolar_eval ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} )
 
+add_executable(kitti_eval src/kitti_eval.cc
+    src/utils.hpp
+    ${SRCLIST}
+)
+target_link_libraries(kitti_eval ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} )
+
 add_executable(MonteCarlo src/m_pts_eval.cc
                src/utils.hpp
                ${SRCLIST}

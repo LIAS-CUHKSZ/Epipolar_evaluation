@@ -1,0 +1,11 @@
+kitti:
+  t_min: 0.4
+  r_min: 0.005
+  pts_min: 400
+  use_lie: true
+
+eth3d:
+  t_min: 0.4
+  r_min: 0.005
+  pts_min: 400
+  use_lie: true
