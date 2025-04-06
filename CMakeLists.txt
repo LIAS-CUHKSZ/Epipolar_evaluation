@@ -26,7 +26,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-add_definitions("-Og -msse2 -msse3 -march=native -std=c++17")
+add_definitions("-O3 -msse2 -msse3 -march=native -std=c++17")
 set( CMAKE_CXX_FLAGS "-march=native -fopenmp" )
 include_directories(
     ./src
