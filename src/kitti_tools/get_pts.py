@@ -54,15 +54,15 @@ def save_histogram(distances, output_path):
     plt.savefig(output_path)
     plt.close()
 
-def extract_and_match_features(image_pair, eval_dir, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold):
+def extract_and_match_features(image_pair, eval_dir, detector, threshold, confidence):
     img1_path, img2_path = image_pair
     # Read images
     img1 = cv2.imread(str(img1_path), cv2.IMREAD_GRAYSCALE)
     img2 = cv2.imread(str(img2_path), cv2.IMREAD_GRAYSCALE)
     
-    if use_optical_flow:
+    if detector == "lkof":
         # Optical flow-based feature matching
-        feature_params = dict(maxCorners=2500, qualityLevel=0.01, minDistance=7, blockSize=7)
+        feature_params = dict(qualityLevel=0.01, minDistance=7, blockSize=7)
         pts1 = cv2.goodFeaturesToTrack(img1, mask=None, **feature_params)
         if pts1 is None:
             return img1_path.stem, img2_path.stem, None, None, None, None
@@ -73,13 +73,13 @@ def extract_and_match_features(image_pair, eval_dir, detector, ransac_threshold,
         pts1_back, st_back, err_back = cv2.calcOpticalFlowPyrLK(img2, img1, pts2, None, **lk_params)
         
         d = np.linalg.norm(pts1 - pts1_back, axis=1)
-        valid = d < bidirectional_threshold
+        valid = d < threshold
         pts1 = pts1[valid]
         pts2 = pts2[valid]
         
         # RANSAC to refine optical flow matches
         if len(pts1) >= 8:
-            F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, ransac_threshold, confidence)
+            F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, threshold, confidence)
             pts1 = pts1[mask.ravel() == 1]
             pts2 = pts2[mask.ravel() == 1]
             distances = calculate_epipolar_distances(pts1, pts2, F)
@@ -115,7 +115,7 @@ def extract_and_match_features(image_pair, eval_dir, detector, ransac_threshold,
     
     # RANSAC
     if len(pts1) >= 8:
-        F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, ransac_threshold, confidence)
+        F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, threshold, confidence)
         pts1 = pts1[mask.ravel() == 1]
         pts2 = pts2[mask.ravel() == 1]
         distances = calculate_epipolar_distances(pts1, pts2, F)
@@ -125,12 +125,12 @@ def extract_and_match_features(image_pair, eval_dir, detector, ransac_threshold,
 
 def process_image_pair(args):
     """Wrapper function to process an image pair with eval_dir."""
-    image_pair, eval_dir, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold = args
-    return extract_and_match_features(image_pair, eval_dir, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold)
+    image_pair, eval_dir, detector, threshold, confidence = args
+    return extract_and_match_features(image_pair, eval_dir, detector, threshold, confidence)
 
-def process_sequence(sequence_path, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold):
+def process_sequence(sequence_path, detector, threshold, confidence):
     img_dir = sequence_path / 'image_0'
-    eval_dir = sequence_path / f'{ransac_threshold}_{int(confidence * 100)}_{detector}_optflow_{use_optical_flow}'
+    eval_dir = sequence_path / f'{threshold}_{int(confidence * 100)}_{detector}'
     os.makedirs(eval_dir, exist_ok=True)
     
     output_file = eval_dir / 'matches.txt'
@@ -148,7 +148,7 @@ def process_sequence(sequence_path, detector, ransac_threshold, confidence, use_
     all_distances = []
     
     with Pool(processes=n_cores) as pool:
-        args = [(pair, eval_dir, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold) for pair in image_pairs]
+        args = [(pair, eval_dir, detector, threshold, confidence) for pair in image_pairs]
         for result in tqdm(pool.imap_unordered(process_image_pair, args), 
                           total=len(image_pairs), 
                           desc=f"Processing sequence {sequence_path.name}"):
@@ -196,22 +196,25 @@ def process_sequence(sequence_path, detector, ransac_threshold, confidence, use_
             f.write("\n")
 
 def main():
-    print("if u want to use SURF, please install python3.6 and opencv & opencv-contrib-python==3.4.1.15")
+    print("\033[92mif u want to use SURF, please install python3.6 and opencv & opencv-contrib-python==3.4.1.15\033[0m")
     parser = argparse.ArgumentParser(description="Epipolar Geometry Evaluation")
-    parser.add_argument("--dataset_dir", type=str, default="/home/neo/Epipolar_evaluation/dataset", help="Path to the dataset directory")
-    parser.add_argument("--detector", type=str, choices=["surf", "orb", "sift"], default="surf", help="Feature detector to use")
-    parser.add_argument("--ransac_threshold", type=float, default=1.0, help="RANSAC reprojection threshold")
+    parser.add_argument("--dataset_dir", type=str, default="../../dataset", help="Path to the dataset directory")
+    parser.add_argument("--detector", type=str, choices=["surf", "orb", "sift","lkof"], default="sift", help="Feature detector to use")
+    parser.add_argument("--threshold", type=float, default=1.0, help="RANSAC or bi-direction optiflow error threshold")
     parser.add_argument("--confidence", type=float, default=0.999, help="RANSAC confidence level")
-    parser.add_argument("--use_optical_flow", action="store_true", help="Use optical flow instead of feature detectors")
-    parser.add_argument("--bidirectional_threshold", type=float, default=1.0, help="Threshold for bidirectional consistency in optical flow")
     args = parser.parse_args()
+    
+    print(f"detector: {args.detector}")
+    print(f"threshold: {args.threshold}")
+    print(f"confidence: {args.confidence}")
+    print(f"dataset directory: {args.dataset_dir}")
     
     dataset_dir = Path(args.dataset_dir)
     sequence_dirs = list(dataset_dir.glob("[0-9][0-9]"))
     for i, seq_dir in enumerate(sequence_dirs):
         if seq_dir.is_dir():
             print(f"\nProcessing sequence {i+1}/{len(sequence_dirs)}: {seq_dir.name}...")
-            process_sequence(seq_dir, args.detector, args.ransac_threshold, args.confidence, args.use_optical_flow, args.bidirectional_threshold)
+            process_sequence(seq_dir, args.detector, args.threshold, args.confidence)
 
 if __name__ == "__main__":
     main()
