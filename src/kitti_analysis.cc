@@ -8,6 +8,8 @@
 #include <chrono>
 #include <vector>
 #include <yaml-cpp/yaml.h>
+#include <iomanip> // For std::setw
+#include <filesystem> // For creating directories
 
 #include "draw_corre.hpp"
 #include "pt3d.hpp"
@@ -181,6 +183,9 @@ int main(int argc, char **argv) {
     int progress = correspondences.size();
     int tmp_finish = 0; // for printing progress bar
     
+    std::string result_dir = dir_name + "/result";
+    std::filesystem::create_directory(result_dir);
+
     for (size_t i = 0; i < correspondences.size() && i < gtPoses.size(); ++i) {
         printProg(tmp_finish++, progress);
         
@@ -227,39 +232,17 @@ int main(int argc, char **argv) {
                img2path = to_string(corr.img2_idx);
                
         // for debug img saving(name)
-        string img1showpath = seqDir + "/image_0/" + to_string(corr.img1_idx) + ".png";
-        string img2showpath = seqDir + "/image_0/" + to_string(corr.img2_idx) + ".png";
-        
-        /* ---------------------------remove outlier if necessary--------------------------------------*/
-        // vector<Vector3d>  y_n_in, z_n_in; // inliers
-        // vector<Point2d> y_cv_pix_in, z_cv_pix_in;
-        // cv::Mat inlier_mask, intri_cv;
-        // cv::eigen2cv(K, intri_cv);
-        // cv::findEssentialMat(y_cv_pix, z_cv_pix, intri_cv, cv::LMEDS, 0.999, 1.0, inlier_mask);
-        // for (size_t i = 0; i < inlier_mask.rows; ++i) // remove outlier using inlier_mask
-        // {
-        //     if (inlier_mask.at<uchar>(i, 0))
-        //     {
-        //         y_n_in.emplace_back(y_n[i]);
-        //         z_n_in.emplace_back(z_n[i]);
-        //         y_cv_pix_in.emplace_back(y_cv_pix[i]);
-        //         z_cv_pix_in.emplace_back(z_cv_pix[i]);
-        //     }
-        // }
-        // y_n = std::move(y_n_in);
-        // z_n = std::move(z_n_in);
-        // y_cv_pix = std::move(y_cv_pix_in);
-        // z_cv_pix = std::move(z_cv_pix_in);
-        // total_covisible = z_cv_pix.size();
+        std::ostringstream img1name, img2name;
+        img1name << std::setw(6) << std::setfill('0') << corr.img1_idx << ".png";
+        img2name << std::setw(6) << std::setfill('0') << corr.img2_idx << ".png";
+        string img1showpath = seqDir + "/image_0/" + img1name.str();
+        string img2showpath = seqDir + "/image_0/" + img2name.str();
 
-        //-------------------------------------- solve the epipolar problem here------------------------------------------
-
-
-        // temp vars
-        Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
-        Matrix3d R_r5pt;
-        Vector3d t_r5pt;
-        eigen2cv(K, intrinsic_cv);
+                // temp vars
+                Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
+                Matrix3d R_r5pt;
+                Vector3d t_r5pt;
+                eigen2cv(K, intrinsic_cv);
 
         /* ↓------------------RANSAC-5pt method------------------↓ */
         double ransac_time = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::RANSAC, 0.999, 1.0);
@@ -275,136 +258,58 @@ int main(int argc, char **argv) {
 
         /* ↓------------------consistent estimator------------------↓ */
         ConsistentEst est(K);
-        time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix,1,0.01););
+        time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix,1););
         calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
         calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
         if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
             DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, false);
-        /* ↑------------------consistent estimator------------------↑ */
 
-    
+        if (t_err_this_round > 0.3) {
+            // Create folder for this pair
+            std::ostringstream folder_name;
+            folder_name << result_dir << "/" << std::setw(6) << std::setfill('0') << valid_round;
+            std::filesystem::create_directory(folder_name.str());
 
-        EigenWrapper gv_esv(y_n, z_n);
-        time_elapse = TIME_IT(gv_esv.GetPose(R_estimated, t_estimated, R_r5pt);) + ransac_time;
-        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
-        calcEval(R_lie, t_with_scale, egsolver, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-        /* ↑------------------eigensolver estimator------------------↑ */
+            // Save image pair
+            std::string img1_save_path = folder_name.str() +"/"+img1name.str();
+            std::string img2_save_path = folder_name.str() +"/"+img2name.str();
+            std::filesystem::copy(img1showpath, img1_save_path, std::filesystem::copy_options::overwrite_existing);
+            std::filesystem::copy(img2showpath, img2_save_path, std::filesystem::copy_options::overwrite_existing);
 
+            // Save ground truth and estimated poses
+            std::ofstream pose_file(folder_name.str() + "/poses.txt");
+            pose_file << std::fixed << std::setprecision(6);
+            pose_file << "GT_R:\n" << R_gt << "\nGT_t:\n" << t_gt.transpose() << "\n";
+            pose_file << "Estimated_R:\n" << R_estimated << "\nEstimated_t:\n" << t_estimated.transpose() << "\n";
+            pose_file.close();
 
-        // lm solver, using 5pt as init value
-        lmSolverWrapper lm_solver(y_n, z_n);
-        time_elapse = TIME_IT(lm_solver.GetPose(R_estimated, t_estimated, R_r5pt, t_r5pt);) + ransac_time;
-        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
-        calcEval(R_lie, t_with_scale, lm, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-
-        /* ↓------------------E Manifold GN------------------↓ */
-        Matrix3d E_MGN_Init;
-        cv2eigen(E_cv, E_MGN_Init); // use RANSAC-5pt result as initial value
-        ManifoldGN MGN(K);
-        time_elapse = TIME_IT(MGN.GetPose(R_estimated, t_estimated, y_cv_pix, z_cv_pix, y_n, z_n, E_MGN_Init);) + ransac_time;
-        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
-        calcEval(R_lie, t_with_scale, e_m_gn, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-        /* ↑------------------E Manifold GN------------------↑ */
-
-        /* ↓------------------SDP on Essential Mat------------------↓ */
-        // prepare data
-        double *npt_p1 = new double[3 * y_n.size()], *npt_p2 = new double[3 * y_n.size()];
-        for (size_t i = 0; i < y_n.size(); ++i)
-        {
-            y_n[i].normalize();
-            z_n[i].normalize();
-            npt_p1[3 * i] = y_n[i](0);
-            npt_p1[3 * i + 1] = y_n[i](1);
-            npt_p1[3 * i + 2] = y_n[i](2);
-            npt_p2[3 * i] = z_n[i](0);
-            npt_p2[3 * i + 1] = z_n[i](1);
-            npt_p2[3 * i + 2] = z_n[i](2);
+            // Save point pairs
+            std::ofstream points_file(folder_name.str() + "/points.txt");
+            points_file << std::fixed << std::setprecision(6);
+            for (const auto& pt : y_cv_pix) {
+                points_file << pt.x << " " << pt.y << " ";
+            }
+            points_file << "\n";
+            for (const auto& pt : z_cv_pix) {
+                points_file << pt.x << " " << pt.y << " ";
+            }
+            points_file.close();
         }
-        // solve
-        double *C = new double[81];
-        Eigen::Matrix<double, 12, 12> X_sol;
-        Matrix3d sdp_E;
-        time_elapse = TIME_IT(npt_pose(npt_p2, npt_p1, C, y_n.size(), X_sol, sdp_E, true);
-                              eigen2cv(sdp_E, E_cv);
-                              cv::recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-                              cv2eigen(R_cv, R_estimated);
-                              cv2eigen(t_cv, t_estimated););
-        calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
-        calcEval(R_lie, t_with_scale, sdp, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-        /* ↑------------------SDP on Essential Mat------------------↑ */
-        
-        // Clean up
-        delete[] npt_p1;
-        delete[] npt_p2;
-        delete[] C;
+        /* ↑------------------consistent estimator------------------↑ */
     }
+      
 
     // ------------------------------------ save results here----------------------------------------
     saveRes(c_est, dir_name);
-    saveRes(sdp, dir_name);
-    saveRes(egsolver, dir_name);
-    saveRes(e_m_gn, dir_name);
-    saveRes(lm, dir_name);
 
     // save method error;
     std::ofstream file(dir_name + "/errors.txt");
     file << "method,      avr_time,      R_err ,      t_err" << endl;
     file << std::setw(12) << "c_est: " << std::setw(10) << c_est.average_time << std::setw(10) << c_est.total_R_Fn << std::setw(10) << c_est.total_t_cos << endl;
-    file << std::setw(12) << "sdp: " << std::setw(10) << sdp.average_time << std::setw(10) << sdp.total_R_Fn << std::setw(10) << sdp.total_t_cos << endl;
-    file << std::setw(12) << "egsolver: " << std::setw(10) << egsolver.average_time << std::setw(10) << egsolver.total_R_Fn << std::setw(10) << egsolver.total_t_cos << endl;
-    file << std::setw(12) << "e_m_gn: " << std::setw(10) << e_m_gn.average_time << std::setw(10) << e_m_gn.total_R_Fn << std::setw(10) << e_m_gn.total_t_cos << endl;
-    file << std::setw(12) << "pt5ransac: " << std::setw(10) << pt5ransac.average_time << std::setw(10) << pt5ransac.total_R_Fn << std::setw(10) << pt5ransac.total_t_cos << endl;
-    file << std::setw(12) << "lm: " << std::setw(10) << lm.average_time << std::setw(10) << lm.total_R_Fn << std::setw(10) << lm.total_t_cos << endl;
-    
-    // if the error of c_est is the smallest of the five methods, print it
-    int flag = 0;
-    if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < lm.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn  && c_est.total_R_Fn < egsolver.total_R_Fn)
-    {
-        flag |= 1;
-    }
-    if (c_est.total_t_cos < sdp.total_t_cos && c_est.total_t_cos < lm.total_t_cos && c_est.total_t_cos < e_m_gn.total_t_cos  && c_est.total_t_cos < egsolver.total_t_cos)
-    {
-        flag |= 2;
-    }
 
-    if (flag == 3)
-    {
-        file << "c_est best!!!" << endl;
-    }
-    else if (flag == 1)
-    {
-        file << "c_est sota R" << endl;
-    }
-    else if (flag == 2)
-    {
-        file << "c_est sota t" << endl;
-    }
-    else
-    {
-        file << "no best" << endl;
-    }
-    file.close();
-
-    std::string filename = "kitti_best_estimation.txt";
-    std::ofstream eval_file;
-    // save the best method
-    std::ifstream infile(filename);
-    if (infile.good())
-        eval_file.open(filename, std::ios::app);
-    else
-        eval_file.open(filename);
-    eval_file << flag << "  " << "kitti" + sequenceNum + eval_dir + (use_lie ? " true" : " false") << endl;
-    eval_file.close();
 
     std::cout << "----------------" << endl;
     std::cout << std::setw(15) << "[c_est] R:" << std::setw(12) << c_est.total_R_Fn << std::setw(12) << " t: " << c_est.total_t_cos << endl;
-    std::cout << std::setw(15) << "[sdp] R:" << std::setw(12) << sdp.total_R_Fn << std::setw(12) << " t: " << sdp.total_t_cos << endl;
-    std::cout << std::setw(15) << "[egsolver] R:" << std::setw(12) << egsolver.total_R_Fn << std::setw(12) << " t: " << egsolver.total_t_cos << endl;
-    std::cout << std::setw(15) << "[e_m_gn] R:" << std::setw(12) << e_m_gn.total_R_Fn << std::setw(12) << " t: " << e_m_gn.total_t_cos << endl;
-    std::cout << std::setw(15) << "[pt5ransac] R:" << std::setw(12) << pt5ransac.total_R_Fn << std::setw(12) << " t: " << pt5ransac.total_t_cos << endl;
-    std::cout << std::setw(15) << "[lm] R:" << std::setw(12) << lm.total_R_Fn << std::setw(12) << " t: " << lm.total_t_cos << endl;
-    std::cout << flag << endl;
-    std::cout << "--------------------------------------" << endl;
 
     return EXIT_SUCCESS;
 }

@@ -1,47 +1,34 @@
 #!/bin/bash
 
-max_parallel=12
-count=0
+# Ensure all background tasks are killed if the script is terminated
+trap "echo 'Terminating all background tasks...'; kill 0" SIGINT SIGTERM EXIT
 
-for seq in {00..10}; do
-    # Check if the program count is less than the max parallel
-    if [ $count -lt $max_parallel ]; then
-        # Start a new program and increment the count
-        ./kitti_eval $seq eval &
-        count=$((count+1))
-    else
-        # Wait for a program to finish and decrement the count
-        wait -n
-        count=$((count-1))
+# Set max_parallel to the number of logical cores
+max_parallel=$(nproc)
 
-        # Start a new program and increment the count
-        ./kitti_eval $seq eval &
-        count=$((count+1))
-    fi
+datasets=("1_99_orb" "1_99_sift" "1_99_surf" 
+        "2_99_orb" "2_99_sift" "2_99_surf" 
+        "3_95_sift" "of2_2_99")
 
-    # Repeat for other tasks
-    if [ $count -lt $max_parallel ]; then
-        ./kitti_eval $seq evaltest &
-        count=$((count+1))
-    else
-        wait -n
-        count=$((count-1))
-        ./kitti_eval $seq evaltest &
-        count=$((count+1))
-    fi
+cd build
 
-    if [ $count -lt $max_parallel ]; then
-        ./kitti_eval $seq 2_95 &
-        count=$((count+1))
-    else
-        wait -n
-        count=$((count-1))
-        ./kitti_eval $seq 2_95 &
-        count=$((count+1))
-    fi
+for dataset in "${datasets[@]}"; do
+    count=0
+    for seq in {00..10}; do
+        if [ $count -lt $max_parallel ]; then
+            ./kitti_eval $seq $dataset &
+            count=$((count+1))
+        else
+            wait -n
+            count=$((count-1))
+            ./kitti_eval $seq $dataset &
+            count=$((count+1))
+        fi
+    done
 done
 
-# Wait for all programs to finish
 wait
+
+cd ..
 
 

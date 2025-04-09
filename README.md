@@ -22,17 +22,21 @@ This repository is used for evaluating several state-of-the-art epipolar-geometr
 
   [Direct Optimization of Frame-to-Frame Rotation](https://ieeexplore.ieee.org/document/6751403)
 
+- **LM**：direct optimize the epipolar error, use nonlinear-least square L-M method to minimize the cost. (using the interface of [OpenGV](https://github.com/laurentkneip/opengv)) 
+
 - **Consistent_est**：**Global Consistent Optimizer with Bias Elimination** (our method, SOTA!)
 
 Among them, the algorithms that require initial values (E_MGN, EigenSolver) use the solution of 5pt-RANSAC as the initial value.
 
 The evaluation uses the Multiview dataset from ETH3D, which can be found at: [Datasets - ETH3D](https://www.eth3d.net/datasets#high-res-multi-view). Information about the dataset can be found in the documentation: [Documentation - ETH3D](https://www.eth3d.net/documentation). We have also modified the data loader for convenient data association between any two images. Their source code is available at: [ETH3D/format-loader](https://github.com/ETH3D/format-loader).
 
-If you encounter any problems or have any questions while using this repository, use **issue** with detailed nformation if possible. Of course, feel free to contact us via email: [zengqingcheng@cuhk.edu.cn](mailto:zengqingcheng@cuhk.edu.cn)
+We also conduct experiments on KITTI dataset [Visual Odometry / SLAM Evaluation 2012](https://www.cvlibs.net/datasets/kitti/eval_odometry.php). For evaluation on KITTI, we provide many useful tools in `src/kitti_tools` for u convinience.
+
+If you encounter any problems or have any questions while using this repository, use **issue** with detailed nformation if possible. Of course, feel free to contact us via email: [zengqingcheng@cuhk.edu.cn](mailto:zengqingcheng@cuhk.edu.cn,qzeng450@connect.hkust-gz.edu.cn)
 
 ## Installation
 
-> The code in this repository has been compiled and tested on Windows using [Msys2-MinGW64](https://www.msys2.org/). Therefore, in theory, it should also work on Linux systems after installing `cmake`, `build-essential`, and the dependencies listed below.
+> The code in this repository has been compiled and tested on Windows using [Msys2-MinGW64](https://www.msys2.org/) and Ubuntu 22.04.
 
 The dependencies of this repository include:
 
@@ -43,7 +47,11 @@ The dependencies of this repository include:
 
 OpenGV and SDPA need to be compiled from source code, while other dependencies can be installed directly from software repositories.
 
-> SDPA seems to be installable from the software repository. You can try that. However, the `FindSDPA.cmake` used in this repository has been set with a absolute path to the compiled lib, so you may need to make some modifications to it (use `find_package(SDPA REQUIRED)` instead).
+> SDPA seems to be installable from the software repository. You can try that. However, the `FindSDPA.cmake` used in this repository has been set with a relative path to the compiled lib, so you may need to make some modifications to it (use `find_package(SDPA REQUIRED)` instead).
+
+It is highly recommended to use to lib in `src/3rdparty` instead of downloading yourself. 
+
+> **We modify the EigenSolver implementation in OpenGV, avoid the translation flip problem.**, see `src/relative_pose/methods.cpp`, we use all points for flipping test instead of the first 1.
 
 ## Usage
 

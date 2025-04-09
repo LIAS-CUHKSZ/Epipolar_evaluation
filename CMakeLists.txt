@@ -14,6 +14,7 @@ set(opengv_DIR /home/neo/Epipolar_evaluation/src/3rdparty/opengv/build)
 find_package(opengv REQUIRED)
 set(OpenGV_LIBS /home/neo/Epipolar_evaluation/src/3rdparty/opengv/build/lib/libopengv.so)
 find_package(yaml-cpp REQUIRED)
+find_package(OpenMP REQUIRED)
 
 
 # add_definitions(-DREMOVE_OUTLIER)
@@ -31,8 +32,8 @@ set( CMAKE_CXX_FLAGS "-march=native -fopenmp" )
 include_directories(
     ./src
 )
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -funroll-all-loops")
-set(CMAKE_Fortran_FLAGS "-Wall -fPIC -funroll-all-loops")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -funroll-all-loops ${OpenMP_CXX_FLAGS}")
+set(CMAKE_Fortran_FLAGS "-Wall -fPIC -funroll-all-loops ${OpenMP_Fortran_FLAGS}")
 
 
 include_directories(src/data_loader src/methods src/methods/E_sdp )
@@ -47,21 +48,20 @@ file(GLOB_RECURSE SRCLIST
   src/utils/hpp
 )
 
-# Executable,eval for epipolar geometry estimation
-add_executable(epipolar_eval src/eval.cc
-    src/utils.hpp
-    ${SRCLIST}
-)
-target_link_libraries(epipolar_eval ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} ${YAML_CPP_LIBRARIES})
+# Create a library from SRCLIST
+add_library(eval_lib STATIC ${SRCLIST})
+target_link_libraries(eval_lib ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} ${YAML_CPP_LIBRARIES} OpenMP::OpenMP_CXX)
 
-add_executable(kitti_eval src/kitti_eval.cc
-    src/utils.hpp
-    ${SRCLIST}
-)
-target_link_libraries(kitti_eval ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} ${YAML_CPP_LIBRARIES})
+# Executable, eval for epipolar geometry estimation
+add_executable(epipolar_eval src/eval.cc src/utils.hpp)
+target_link_libraries(epipolar_eval eval_lib)
 
-add_executable(MonteCarlo src/m_pts_eval.cc
-               src/utils.hpp
-               ${SRCLIST}
-)
-target_link_libraries(MonteCarlo ${OpenCV_LIBS} ${SDPA_LIBRARIES}  ${OpenGV_LIBS} ${YAML_CPP_LIBRARIES})
+
+add_executable(kitti_eval src/kitti_eval.cc src/utils.hpp)
+target_link_libraries(kitti_eval eval_lib)
+
+# add_executable(kitti_analysis src/kitti_analysis.cc src/utils.hpp)
+# target_link_libraries(kitti_analysis eval_lib)
+
+# add_executable(MonteCarlo src/m_pts_eval.cc src/utils.hpp)
+# target_link_libraries(MonteCarlo eval_lib)

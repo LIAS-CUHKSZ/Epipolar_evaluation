@@ -4,6 +4,7 @@
 #include "eigen3/Eigen/Dense"
 #include "eigen3/unsupported/Eigen/KroneckerProduct"
 #include "eigen3/unsupported/Eigen/MatrixFunctions"
+#include <cstdlib>
 #include <vector>
 #include <iostream>
 #include "opencv2/calib3d.hpp"
@@ -12,6 +13,7 @@
 #include "opencv2/core/eigen.hpp"
 #include "opencv2/opencv_modules.hpp"
 #include <cmath>
+#include <omp.h>
 
 using namespace std;
 using namespace cv;
@@ -32,6 +34,18 @@ public:
     Vector3d e1, e2, e3;
 
 private:
+    double compute_epipolar_error(const Matrix3d &E, const vector<Vector3d> &y_h, const vector<Vector3d> &z_h)
+    {
+        double error = 0.0;
+        for (int i = 0; i < m; i++)
+        {
+            // Compute the epipolar constraint z^T * E * y
+            double epipolar_constraint = z_h[i].transpose() * E * y_h[i];
+            error += abs(epipolar_constraint);
+        }
+        return error / m; // Return the average error
+    }
+
     void BiasElimination(vector<Vector3d> &y_h, vector<Vector3d> &z_h, vector<Point2d> y_p_cv, vector<Point2d> z_p_cv)
     {
         MatrixXd A(m, 9);
@@ -52,20 +66,38 @@ private:
 
         Matrix<double, 9, 9> Q_BE = Q_m - var_est * S_m;
         EigenSolver<Matrix<double, 9, 9>> es_svd(Q_BE);
-        int idx;
         Matrix<double, 9, 1> eigens = es_svd.eigenvalues().real();
-        eigens.minCoeff(&idx);
-        Ess_svd = es_svd.eigenvectors().real().col(idx).reshaped(3, 3);
 
+        // Recover E using minimum and second minimum singular values
+        int idx_min1, idx_min2;
+        eigens.minCoeff(&idx_min1);
+        eigens(idx_min1) = numeric_limits<double>::max(); // Exclude the minimum for the second minimum
+        eigens.minCoeff(&idx_min2);
+
+        Matrix3d E_min1 = es_svd.eigenvectors().real().col(idx_min1).reshaped(3, 3);
+        Matrix3d E_min2 = es_svd.eigenvectors().real().col(idx_min2).reshaped(3, 3);
+
+        // Evaluate epipolar error for both E_min1 and E_min2
+        double E_min1_err = compute_epipolar_error(E_min1, y_h, z_h);
+        double E_min2_err = compute_epipolar_error(E_min2, y_h, z_h);
+
+        // Recover R and t from the better E
         cv::Mat essential, intrinsic_cv, R_cv, t_cv;
-        eigen2cv(Ess_svd, essential);
         eigen2cv(intrinsic, intrinsic_cv);
+        if (5*E_min1_err > E_min2_err) // Threshold to decide which E to use
+        {
+            // adaptively switch to ransac to avoid selecting faraway & coplanar points
+            essential = findEssentialMat(y_p_cv, z_p_cv, intrinsic_cv, cv::LMEDS, 0.999, 1.0); 
+            cv2eigen(essential, E_min1);
+            std::cout << "singular, use initial R and t" << std::endl;
+        }
+        eigen2cv(E_min1, essential);
         recoverPose(essential, y_p_cv, z_p_cv, intrinsic_cv, R_cv, t_cv);
         cv2eigen(R_cv, R_svd);
         cv2eigen(t_cv, t_svd);
     }
 
-    void ManifoldGN(vector<Vector3d> &y_h, vector<Vector3d> &z_h, int max_iterations)
+    void ManifoldGN(vector<Vector3d> &y_h, vector<Vector3d> &z_h, int max_iterations, double tls_threshold)
     {
         Matrix3d R_curr = R_svd;
         Vector3d t_curr = t_svd;
@@ -94,7 +126,7 @@ private:
                    0, 0, 0;
 
             Matrix<double, 9, 3> t_tri = kron(Matrix3d::Identity(), t_curr).eval();
-
+// #pragma omp parallel for schedule(static)
             for (int i = 0; i < m; i++)
             {
                 Vector3d Ryih = R_curr * y_h[i];
@@ -136,12 +168,36 @@ private:
                 J.block<2, 1>(2 * i, 4) = (h * W * (scale * par_t_alpha + par_ki_alpha * t_curr) -
                                          g * e3.transpose() * (scale * par_t_alpha + par_ki_alpha * t_curr)) / (h * h);
             }
-
             VectorXd z(2 * m, 1);
             for (int i = 0; i < m; i++)
                 z.block<2, 1>(2 * i, 0) << z_h[i](0), z_h[i](1);
 
-            Vector<double, 5> delta = (J.transpose() * J).inverse() * J.transpose() * (z - z_pred);
+            VectorXd residual = z - z_pred;
+
+            // Apply TLS only if tls_threshold > 0
+            int total = 0;
+            double tt = 0;
+            double maxl = 0;
+            if (tls_threshold > 0)
+            {
+                for (int i = 0; i < residual.size(); i++)
+                {
+                    tt+=abs(residual(i));
+                    maxl = max(maxl, abs(residual(i)));
+                    if (abs(residual(i)) > tls_threshold)
+                    {
+                            residual(i) = 0;
+                            total++;
+                        
+                    }
+                }
+            }
+            tt/= residual.size();
+            if(maxl>0.01)
+            {
+                cout << "Total outliers: " << total  << " total pts:" << m  << " max: " << maxl << endl;
+            }
+            Vector<double, 5> delta = (J.transpose() * J).inverse() * J.transpose() * residual;
 
             Matrix3d lie;
             lie << 0, -delta(2), delta(1),
@@ -184,13 +240,13 @@ public:
      * @param y_h
      * @param z_h
      */
-    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h, vector<Point2d> &ypix, vector<Point2d> &zpix, int iter=1)
+    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h, vector<Point2d> &ypix, vector<Point2d> &zpix, int iter=1, double tls_threshold = -1.0)
     {
         m = y_h.size();
 
         BiasElimination(y_h, z_h, ypix, zpix);
 
-        ManifoldGN(y_h, z_h,iter);
+        ManifoldGN(y_h, z_h,iter,tls_threshold);
 
         R = R_GN;
         t = t_GN;

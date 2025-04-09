@@ -1,12 +1,14 @@
 #!/bin/bash
 if [ $# -ne 2 ]
 then
-    echo "Usage: $0 <windows_size> <max_parallel>"
+    echo "Usage: $0 <windows_size>"
+    echo "if <windows_size> is -1, eval will try matching every two img in the sequence."
+    echo " if <windows_size> not provided, the default value is -1."
     exit 1
 fi
 
 windows_size=$1
-max_parallel=$2
+max_parallel=$(nproc)
 dataset_path="dataset"
 
 subdirs=$(find $dataset_path -type d)

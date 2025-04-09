@@ -7,6 +7,7 @@ from itertools import islice
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import random
+import argparse
 
 def draw_epipolar_lines(img1, img2, pts1, pts2, F, output_path):
     """Draw epipolar lines on the second image corresponding to points in the first image."""
@@ -53,88 +54,101 @@ def save_histogram(distances, output_path):
     plt.savefig(output_path)
     plt.close()
 
-def extract_and_match_features(image_pair, eval_dir):
+def extract_and_match_features(image_pair, eval_dir, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold):
     img1_path, img2_path = image_pair
     # Read images
     img1 = cv2.imread(str(img1_path), cv2.IMREAD_GRAYSCALE)
     img2 = cv2.imread(str(img2_path), cv2.IMREAD_GRAYSCALE)
     
-    # Initialize SIFT detector
-    sift = cv2.SIFT_create()
-    
-    # Find keypoints and descriptors
-    kp1, des1 = sift.detectAndCompute(img1, None)
-    kp2, des2 = sift.detectAndCompute(img2, None)
-    
-    # FLANN matcher
-    FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-    search_params = dict(checks=50)
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
-    
-    matches = flann.knnMatch(des1, des2, k=2)
-    
-    # Lowe's ratio test
-    good_matches = []
-    pts1 = []
-    pts2 = []
-    
-    for m, n in matches:
-        if m.distance < 0.7 * n.distance:
-            good_matches.append(m)
-            pts1.append(kp1[m.queryIdx].pt)
-            pts2.append(kp2[m.trainIdx].pt)
-    
-    pts1 = np.float32(pts1)
-    pts2 = np.float32(pts2)
+    if use_optical_flow:
+        # Optical flow-based feature matching
+        feature_params = dict(maxCorners=2500, qualityLevel=0.01, minDistance=7, blockSize=7)
+        pts1 = cv2.goodFeaturesToTrack(img1, mask=None, **feature_params)
+        if pts1 is None:
+            return img1_path.stem, img2_path.stem, None, None, None, None
+        pts1 = np.float32(pts1).reshape(-1, 2)
+        
+        lk_params = dict(winSize=(15, 15), maxLevel=2, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+        pts2, st, err = cv2.calcOpticalFlowPyrLK(img1, img2, pts1, None, **lk_params)
+        pts1_back, st_back, err_back = cv2.calcOpticalFlowPyrLK(img2, img1, pts2, None, **lk_params)
+        
+        d = np.linalg.norm(pts1 - pts1_back, axis=1)
+        valid = d < bidirectional_threshold
+        pts1 = pts1[valid]
+        pts2 = pts2[valid]
+        
+        # RANSAC to refine optical flow matches
+        if len(pts1) >= 8:
+            F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, ransac_threshold, confidence)
+            pts1 = pts1[mask.ravel() == 1]
+            pts2 = pts2[mask.ravel() == 1]
+            distances = calculate_epipolar_distances(pts1, pts2, F)
+            return img1_path.stem, img2_path.stem, pts1, pts2, distances, F
+    else:
+        # Feature detector-based matching
+        if detector == "surf":
+            feature_detector = cv2.xfeatures2d.SURF_create(hessianThreshold=400)
+        elif detector == "orb":
+            feature_detector = cv2.ORB_create()
+        elif detector == "sift":
+            feature_detector = cv2.SIFT_create()
+        else:
+            raise ValueError(f"Unsupported feature detector: {detector}")
+        
+        kp1, des1 = feature_detector.detectAndCompute(img1, None)
+        kp2, des2 = feature_detector.detectAndCompute(img2, None)
+        
+        if detector in ["surf", "sift"]:
+            FLANN_INDEX_KDTREE = 1
+            index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+            search_params = dict(checks=50)
+            flann = cv2.FlannBasedMatcher(index_params, search_params)
+            matches = flann.knnMatch(des1, des2, k=2)
+            good_matches = [m for m, n in matches if m.distance < 0.7 * n.distance]
+        else:
+            bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+            good_matches = bf.match(des1, des2)
+            good_matches = sorted(good_matches, key=lambda x: x.distance)
+        
+        pts1 = np.float32([kp1[m.queryIdx].pt for m in good_matches])
+        pts2 = np.float32([kp2[m.trainIdx].pt for m in good_matches])
     
     # RANSAC
     if len(pts1) >= 8:
-        F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, 2.0, 0.999)
-        
-        # Select only inlier points
+        F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, ransac_threshold, confidence)
         pts1 = pts1[mask.ravel() == 1]
         pts2 = pts2[mask.ravel() == 1]
-        
-        # Calculate epipolar distances
         distances = calculate_epipolar_distances(pts1, pts2, F)
-        
         return img1_path.stem, img2_path.stem, pts1, pts2, distances, F
     
     return img1_path.stem, img2_path.stem, None, None, None, None
 
 def process_image_pair(args):
     """Wrapper function to process an image pair with eval_dir."""
-    image_pair, eval_dir = args
-    return extract_and_match_features(image_pair, eval_dir)
+    image_pair, eval_dir, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold = args
+    return extract_and_match_features(image_pair, eval_dir, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold)
 
-def process_sequence(sequence_path):
+def process_sequence(sequence_path, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold):
     img_dir = sequence_path / 'image_0'
-    # create a eval dir under sequence path
-    eval_dir = sequence_path / 'evaltest'
+    eval_dir = sequence_path / f'{ransac_threshold}_{int(confidence * 100)}_{detector}_optflow_{use_optical_flow}'
     os.makedirs(eval_dir, exist_ok=True)
     
     output_file = eval_dir / 'matches.txt'
     stats_file = eval_dir / 'stats.txt'
     histogram_file = eval_dir / 'distance_histogram.png'
     
-    # Get sorted list of image files
     image_files = sorted(img_dir.glob('*.png'))
-    
-    # Create pairs of consecutive images
     image_pairs = list(zip(image_files[:-1], image_files[1:]))
     
-    # Process pairs in parallel
     n_cores = cpu_count()
     print(f"Using {n_cores} CPU cores")
     
     results = []
-    num_points = []  # Track number of points for statistics
-    all_distances = []  # Collect all distances for histogram
+    num_points = []
+    all_distances = []
     
-    with Pool(processes=16) as pool:
-        # Add tqdm progress bar
-        args = [(pair, eval_dir) for pair in image_pairs]
+    with Pool(processes=n_cores) as pool:
+        args = [(pair, eval_dir, detector, ransac_threshold, confidence, use_optical_flow, bidirectional_threshold) for pair in image_pairs]
         for result in tqdm(pool.imap_unordered(process_image_pair, args), 
                           total=len(image_pairs), 
                           desc=f"Processing sequence {sequence_path.name}"):
@@ -144,25 +158,23 @@ def process_sequence(sequence_path):
                 num_points.append(len(pts1))
                 all_distances.extend(distances)
     
-    # Save histogram of distances
     if all_distances:
         save_histogram(all_distances, histogram_file)
     
-    # Randomly select 5 pairs to draw epipolar lines
     random_pairs = random.sample(results, min(5, len(results)))
     for img1_idx, img2_idx, pts1, pts2, F in random_pairs:
         output_path = eval_dir / f"{img1_idx}_to_{img2_idx}_epilines.png"
+        residual_hist_path = eval_dir / f"{img1_idx}_to_{img2_idx}_residual_hist.png"
         draw_epipolar_lines(cv2.imread(str(img_dir / f"{img1_idx}.png"), cv2.IMREAD_GRAYSCALE),
                             cv2.imread(str(img_dir / f"{img2_idx}.png"), cv2.IMREAD_GRAYSCALE),
                             pts1, pts2, F, str(output_path))
+        save_histogram(calculate_epipolar_distances(pts1, pts2, F), residual_hist_path)
     
-    # Calculate statistics
     if num_points:
         avg_points = sum(num_points) / len(num_points)
         min_points = min(num_points)
         max_points = max(num_points)
         
-        # Save statistics
         with open(stats_file, 'w') as f:
             f.write(f"Sequence Statistics:\n")
             f.write(f"Average points per pair: {avg_points:.2f}\n")
@@ -170,34 +182,36 @@ def process_sequence(sequence_path):
             f.write(f"Maximum points in a pair: {max_points}\n")
             f.write(f"Total image pairs processed: {len(num_points)}\n")
     
-    # Sort results by image index
     results.sort(key=lambda x: int(x[0]))
     
-    # Write results to file
     with open(output_file, 'w') as f:
         for img1_idx, img2_idx, pts1, pts2, _ in results:
             f.write(f"{img1_idx} {img2_idx}")
             f.write(',')
-            
-            # Write points from first image
             for pt in pts1:
                 f.write(f" {pt[0]:.2f} {pt[1]:.2f}")
             f.write(',')
-            # Write points from second image
             for pt in pts2:
                 f.write(f" {pt[0]:.2f} {pt[1]:.2f}")
-                
             f.write("\n")
 
 def main():
-    dataset_dir = Path("/home/neo/Epipolar_evaluation/dataset")
+    print("if u want to use SURF, please install python3.6 and opencv & opencv-contrib-python==3.4.1.15")
+    parser = argparse.ArgumentParser(description="Epipolar Geometry Evaluation")
+    parser.add_argument("--dataset_dir", type=str, default="/home/neo/Epipolar_evaluation/dataset", help="Path to the dataset directory")
+    parser.add_argument("--detector", type=str, choices=["surf", "orb", "sift"], default="surf", help="Feature detector to use")
+    parser.add_argument("--ransac_threshold", type=float, default=1.0, help="RANSAC reprojection threshold")
+    parser.add_argument("--confidence", type=float, default=0.999, help="RANSAC confidence level")
+    parser.add_argument("--use_optical_flow", action="store_true", help="Use optical flow instead of feature detectors")
+    parser.add_argument("--bidirectional_threshold", type=float, default=1.0, help="Threshold for bidirectional consistency in optical flow")
+    args = parser.parse_args()
     
-    # Process each sequence directory
+    dataset_dir = Path(args.dataset_dir)
     sequence_dirs = list(dataset_dir.glob("[0-9][0-9]"))
     for i, seq_dir in enumerate(sequence_dirs):
         if seq_dir.is_dir():
             print(f"\nProcessing sequence {i+1}/{len(sequence_dirs)}: {seq_dir.name}...")
-            process_sequence(seq_dir)
+            process_sequence(seq_dir, args.detector, args.ransac_threshold, args.confidence, args.use_optical_flow, args.bidirectional_threshold)
 
 if __name__ == "__main__":
     main()

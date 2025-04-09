@@ -211,32 +211,35 @@ int main(int argc, char **argv)
 
 			//-------------------------------------- solve the epipolar problem here------------------------------------------
 
-			/* ↓------------------consistent estimator------------------↓ */
-			ConsistentEst est(cameras[images[img1]->camera_id]->intrinsic);
-			time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix, 1););
-			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
-			calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
-			if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
-				DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, false);
-			/* ↑------------------consistent estimator------------------↑ */
-
 			// temp vars
 			Mat E_cv, intrinsic_cv, R_cv, t_cv; // tmp vars
 			Matrix3d R_r5pt;
 			Vector3d t_r5pt;
 			eigen2cv(cameras[images[img1]->camera_id]->intrinsic, intrinsic_cv);
 
-			/* ↓------------------RANSAC-5pt method------------------↓ */
+
+			/* ↓------------------consistent estimator------------------↓ */
+			ConsistentEst est(cameras[images[img1]->camera_id]->intrinsic);
+			time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix, 1,0.01););
+			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
+			calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
+			if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
+				DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix, valid_round, false);
+			/* ↑------------------consistent estimator------------------↑ */
+
+				/* ↓------------------LMEDS-5pt method------------------↓ */
 			double ransac_time = TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv, cv::RANSAC, 0.999, 1.0);
-										 recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
-										 cv2eigen(R_cv, R_r5pt);
-										 cv2eigen(t_cv, t_r5pt););
+			recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
+			cv2eigen(R_cv, R_r5pt);
+			cv2eigen(t_cv, t_r5pt););
 			time_elapse = ransac_time;
 			R_estimated = R_r5pt;
 			t_estimated = t_r5pt;
 			calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie);
 			calcEval(R_lie, t_with_scale, pt5ransac, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse);
-			/* ↑------------------RANSAC-5pt method------------------↑ */
+			/* ↑------------------LMEDS-5pt method------------------↑ */
+
+			
 
 			/* ↓------------------eigensolver estimator------------------↓ */
 			EigenWrapper gv_esv(y_n, z_n);
@@ -297,15 +300,17 @@ int main(int argc, char **argv)
 	saveRes(egsolver, dir_name);
 	saveRes(e_m_gn, dir_name);
 	saveRes(lm, dir_name);
+	saveRes(pt5ransac, dir_name);
 
 	// save method error;
 	std::ofstream file(dir_name + "/errors.txt");
 	file << "method,      avr_time,      R_err ,      t_err" << endl;
-	file << std::setw(12) << "c_est: " << std::setw(10) << c_est.average_time << std::setw(10) << c_est.total_R_Fn << std::setw(10) << c_est.total_t_cos << endl;
-	file << std::setw(12) << "sdp: " << std::setw(10) << sdp.average_time << std::setw(10) << sdp.total_R_Fn << std::setw(10) << sdp.total_t_cos << endl;
-	file << std::setw(12) << "egsolver: " << std::setw(10) << egsolver.average_time << std::setw(10) << egsolver.total_R_Fn << std::setw(10) << egsolver.total_t_cos << endl;
-	file << std::setw(12) << "e_m_gn: " << std::setw(10) << e_m_gn.average_time << std::setw(10) << e_m_gn.total_R_Fn << std::setw(10) << e_m_gn.total_t_cos << endl;
-	file << std::setw(12) << "lm: " << std::setw(10) << lm.average_time << std::setw(10) << lm.total_R_Fn << std::setw(10) << lm.total_t_cos << endl;
+	file << std::setw(15) << "c_est: " << std::setw(15) << c_est.average_time << std::setw(15) << c_est.total_R_Fn << std::setw(15) << c_est.total_t_cos << endl;
+	file << std::setw(15) << "sdp: " << std::setw(15) << sdp.average_time << std::setw(15) << sdp.total_R_Fn << std::setw(15) << sdp.total_t_cos << endl;
+	file << std::setw(15) << "egsolver: " << std::setw(15) << egsolver.average_time << std::setw(15) << egsolver.total_R_Fn << std::setw(15) << egsolver.total_t_cos << endl;
+	file << std::setw(15) << "e_m_gn: " << std::setw(15) << e_m_gn.average_time << std::setw(15) << e_m_gn.total_R_Fn << std::setw(15) << e_m_gn.total_t_cos << endl;
+	file << std::setw(15) << "lm: " << std::setw(15) << lm.average_time << std::setw(15) << lm.total_R_Fn << std::setw(15) << lm.total_t_cos << endl;
+	file << std::setw(15) << "ransac: " << std::setw(15) << pt5ransac.average_time << std::setw(15) << pt5ransac.total_R_Fn << std::setw(15) << pt5ransac.total_t_cos << endl;
 	// if the error of c_est is the smallest of the five methods, print it
 	int flag = 0;
     if (c_est.total_R_Fn < sdp.total_R_Fn && c_est.total_R_Fn < lm.total_R_Fn && c_est.total_R_Fn < e_m_gn.total_R_Fn  && c_est.total_R_Fn < egsolver.total_R_Fn)
@@ -347,12 +352,12 @@ int main(int argc, char **argv)
 	eval_file.close();
 
 	std::cout << "----------------" << endl;
-	std::cout << std::setw(15) << "[c_est] R:" << std::setw(12) << c_est.total_R_Fn << std::setw(12) << " t: " << c_est.total_t_cos << endl;
-	std::cout << std::setw(15) << "[sdp] R:" << std::setw(12) << sdp.total_R_Fn << std::setw(12) << " t: " << sdp.total_t_cos << endl;
-	std::cout << std::setw(15) << "[egsolver] R:" << std::setw(12) << egsolver.total_R_Fn << std::setw(12) << " t: " << egsolver.total_t_cos << endl;
-	std::cout << std::setw(15) << "[e_m_gn] R:" << std::setw(12) << e_m_gn.total_R_Fn << std::setw(12) << " t: " << e_m_gn.total_t_cos << endl;
-	std::cout << std::setw(15) << "[pt5ransac] R:" << std::setw(12) << pt5ransac.total_R_Fn << std::setw(12) << " t: " << pt5ransac.total_t_cos << endl;
-	std::cout << std::setw(15) << "[lm] R:" << std::setw(12) << lm.total_R_Fn << std::setw(12) << " t: " << lm.total_t_cos << endl;
+	std::cout << std::setw(15) << "[c_est] R:" << std::setw(15) << c_est.total_R_Fn << std::setw(15) << " t: " << c_est.total_t_cos << endl;
+	std::cout << std::setw(15) << "[sdp] R:" << std::setw(15) << sdp.total_R_Fn << std::setw(15) << " t: " << sdp.total_t_cos << endl;
+	std::cout << std::setw(15) << "[egsolver] R:" << std::setw(15) << egsolver.total_R_Fn << std::setw(15) << " t: " << egsolver.total_t_cos << endl;
+	std::cout << std::setw(15) << "[e_m_gn] R:" << std::setw(15) << e_m_gn.total_R_Fn << std::setw(15) << " t: " << e_m_gn.total_t_cos << endl;
+	std::cout << std::setw(15) << "[pt5ransac] R:" << std::setw(15) << pt5ransac.total_R_Fn << std::setw(15) << " t: " << pt5ransac.total_t_cos << endl;
+	std::cout << std::setw(15) << "[lm] R:" << std::setw(15) << lm.total_R_Fn << std::setw(15) << " t: " << lm.total_t_cos << endl;
 	std::cout << flag << endl;
 	std::cout << "--------------------------------------" << endl;
 

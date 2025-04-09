@@ -1,12 +1,17 @@
 config:
   kitti:
-    t_min: 0.0
-    r_min: 0.0
-    pts_min: 0
-    use_lie: true
+    t_min: 0.4
+    r_min: 0.005
+    pts_min: 200
+    use_lie: false
 
   eth3d:
     t_min: 0.15
     r_min: 0.005
-    pts_min: 400
-    use_lie: true
+    pts_min: 200
+    use_lie: false
+
+# t_min: minimum translation norm required for each pair of image
+# r_min: minimum rotation norm required for each pair of image
+# pts_min: minimum number of points required for each pair of image
+# use_lie: whether to use manifold metric. fallback to use Euclidean metric if false
