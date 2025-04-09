@@ -40,16 +40,16 @@ If you encounter any problems or have any questions while using this repository,
 
 The dependencies of this repository include:
 
-1. [Eigen3](https://eigen.tuxfamily.org/index.php?title=Main_Page)
-2. [SDPA](https://sdpa.sourceforge.net/)
-3. [OpenCV](https://github.com/opencv/opencv)
-4. [OpenGV](https://github.com/laurentkneip/opengv)
+1. **[Eigen3](https://eigen.tuxfamily.org/index.php?title=Main_Page) >= 3.4.0** (support for `reshapre()`)
+2. [SDPA](https://sdpa.sourceforge.net/) (it is hard to install/build! use the one in `src/3rdparty` directly)
+3. [OpenCV](https://github.com/opencv/opencv) >= 4.0
+4. [OpenGV](https://github.com/laurentkneip/opengv) (better to use the one in `src/3rdparty` directly, it's a modified version)
 
 OpenGV and SDPA need to be compiled from source code, while other dependencies can be installed directly from software repositories.
 
-> SDPA seems to be installable from the software repository. You can try that. However, the `FindSDPA.cmake` used in this repository has been set with a relative path to the compiled lib, so you may need to make some modifications to it (use `find_package(SDPA REQUIRED)` instead).
+> SDPA seems to be installable from the software repository. But we failed the build during linking phase, seems that the NPT-Pose (sdp method) uses some old mumps & sdpa implementation or API. You can try that. However, the `FindSDPA.cmake` used in this repository has been set with a relative path to the compiled lib `src/3rdparty`, so you may need to make some modifications to it (modify FindSDPA.cmake, set the lib to `/usr/include,/usr/lib` etc).
 
-It is highly recommended to use to lib in `src/3rdparty` instead of downloading yourself. 
+**It is highly recommended to use to lib in `src/3rdparty` instead of downloading yourself. **
 
 > **We modify the EigenSolver implementation in OpenGV, avoid the translation flip problem.**, see `src/relative_pose/methods.cpp`, we use all points for flipping test instead of the first 1.
 
