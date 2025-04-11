@@ -8,6 +8,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import random
 import argparse
+from scipy.stats import norm
 
 def draw_epipolar_lines(img1, img2, pts1, pts2, F, output_path):
     """Draw epipolar lines on the second image corresponding to points in the first image."""
@@ -25,8 +26,12 @@ def draw_epipolar_lines(img1, img2, pts1, pts2, F, output_path):
     colors = [tuple(np.random.randint(0, 255, 3).tolist()) for _ in range(len(pts1))]  # Random colors
     
     for line, pt1, color in zip(lines, pts1, colors):
+        # Normalize the line parameters
+        line /= np.sqrt(line[0]**2 + line[1]**2)
+        
         x0, y0 = map(int, [0, -line[2] / line[1]])
         x1, y1 = map(int, [img2.shape[1], -(line[2] + line[0] * img2.shape[1]) / line[1]])
+        
         cv2.line(img2_color, (x0, y0), (x1, y1), color, 1)
         cv2.circle(img2_color, tuple(map(int, pt1)), 5, color, -1)
     
@@ -44,13 +49,31 @@ def calculate_epipolar_distances(pts1, pts2, F):
     return distances
 
 def save_histogram(distances, output_path):
-    """Save a histogram of epipolar distances."""
+    """Save a histogram of epipolar distances with a Gaussian fit."""
     plt.figure()
-    plt.hist(distances, bins=50, range=(-2, 2), color='blue', alpha=0.7)
+    # Plot histogram and get bin data
+    counts, bins, _ = plt.hist(distances, bins=50, range=(-2, 2), color='blue', alpha=0.7, density=True)
+    
+    # Discretize data for Gaussian fitting
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    weights = counts * np.diff(bins)  # Use bin heights as weights
+    mu, std = norm.fit(bin_centers, floc=np.average(bin_centers, weights=weights), fscale=np.sqrt(np.average((bin_centers - np.average(bin_centers, weights=weights))**2, weights=weights)))
+    
+    # Generate Gaussian curve
+    x = np.linspace(bins[0], bins[-1], 100)
+    p = norm.pdf(x, mu, std)
+    
+    # Plot Gaussian curve
+    plt.plot(x, p, 'r--', linewidth=2, label=f'Gaussian Fit\n$\mu={mu:.2f}, \sigma={std:.2f}$')
+    
+    # Add labels and title
     plt.title("Epipolar Distance Histogram")
     plt.xlabel("Distance")
     plt.ylabel("Frequency")
+    plt.legend()
     plt.grid(True)
+    
+    # Save the figure
     plt.savefig(output_path)
     plt.close()
 
@@ -62,7 +85,7 @@ def extract_and_match_features(image_pair, eval_dir, detector, threshold, confid
     
     if detector == "lkof":
         # Optical flow-based feature matching
-        feature_params = dict(qualityLevel=0.01, minDistance=7, blockSize=7)
+        feature_params = dict(maxCorners=2500, qualityLevel=0.01, minDistance=7, blockSize=7)
         pts1 = cv2.goodFeaturesToTrack(img1, mask=None, **feature_params)
         if pts1 is None:
             return img1_path.stem, img2_path.stem, None, None, None, None
@@ -89,9 +112,9 @@ def extract_and_match_features(image_pair, eval_dir, detector, threshold, confid
         if detector == "surf":
             feature_detector = cv2.xfeatures2d.SURF_create(hessianThreshold=400)
         elif detector == "orb":
-            feature_detector = cv2.ORB_create()
+            feature_detector = cv2.ORB_create(nfeatures=2500)  # Set max features for ORB
         elif detector == "sift":
-            feature_detector = cv2.SIFT_create()
+            feature_detector = cv2.SIFT_create(nfeatures=2500)  # Set max features for SIFT
         else:
             raise ValueError(f"Unsupported feature detector: {detector}")
         

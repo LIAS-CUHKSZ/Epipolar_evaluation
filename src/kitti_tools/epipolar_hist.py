@@ -4,6 +4,7 @@ from pathlib import Path
 import random
 from tqdm import tqdm
 import cv2
+from scipy.stats import norm
 
 def calculate_epipolar_distances(pts1, pts2, F):
     """Calculate distances between points and their corresponding epipolar lines."""
@@ -16,13 +17,32 @@ def calculate_epipolar_distances(pts1, pts2, F):
     return distances
 
 def save_histogram(distances, output_path, title="Epipolar Distance Histogram", bins=50):
-    """Save a histogram of epipolar distances."""
+    """Save a histogram of epipolar distances with a Gaussian fit."""
     plt.figure()
-    plt.hist(distances, bins=bins, range=(-4, 4), color='blue', alpha=0.7)
+    # Plot histogram and get bin data
+    counts, bin_edges, _ = plt.hist(distances, bins=bins, range=(-4, 4), color='blue', alpha=0.7, density=True)
+    
+    # Discretize data for Gaussian fitting
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    
+    # Fit Gaussian distribution
+    mu, std = norm.fit(distances)
+    
+    # Generate Gaussian curve
+    x = np.linspace(bin_edges[0], bin_edges[-1], 100)
+    p = norm.pdf(x, mu, std)
+    
+    # Plot Gaussian curve
+    plt.plot(x, p, 'r--', linewidth=2, label=f'Gaussian Fit\n$\mu={mu:.2f}, \sigma={std:.2f}$')
+    
+    # Add labels and title
     plt.title(title)
     plt.xlabel("Distance")
     plt.ylabel("Frequency")
+    plt.legend()
     plt.grid(True)
+    
+    # Save the figure
     plt.savefig(output_path)
     plt.close()
 

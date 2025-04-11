@@ -184,7 +184,7 @@ int main(int argc, char **argv)
 
 			/* ---------------------------remove outlier if necessary--------------------------------------*/
 			// @note the low res datasets have much more outlier(mis-match points pair) than high-res one
-			// you can add definition REMOVE_OUTLIER when using low-res one
+			// you can add definition REMOVE_OUTLIER when using low-res sequences
 #ifdef REMOVE_OUTLIER
 			vector<Vector3d>  y_n_in, z_n_in; // inliers
 			vector<Point2d> y_cv_pix_in, z_cv_pix_in;
@@ -304,7 +304,7 @@ int main(int argc, char **argv)
 
 	// save method error;
 	std::ofstream file(dir_name + "/errors.txt");
-	file << "method,      avr_time,      R_err ,      t_err" << endl;
+	file << "method,         avr_time,          R_err ,          t_err" << endl;
 	file << std::setw(15) << "c_est: " << std::setw(15) << c_est.average_time << std::setw(15) << c_est.total_R_Fn << std::setw(15) << c_est.total_t_cos << endl;
 	file << std::setw(15) << "sdp: " << std::setw(15) << sdp.average_time << std::setw(15) << sdp.total_R_Fn << std::setw(15) << sdp.total_t_cos << endl;
 	file << std::setw(15) << "egsolver: " << std::setw(15) << egsolver.average_time << std::setw(15) << egsolver.total_R_Fn << std::setw(15) << egsolver.total_t_cos << endl;

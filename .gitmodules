@@ -1,6 +1,6 @@
-[submodule "src/opengv"]
-	path = src/opengv
-	url = https://github.com/NeoZng/opengv
 [submodule "src/3rdparty/opengv"]
 	path = src/3rdparty/opengv
 	url = https://github.com/NeoZng/opengv
+[submodule "src/3rdparty/eigen"]
+	path = src/3rdparty/eigen
+	url = https://gitlab.com/libeigen/eigen.git

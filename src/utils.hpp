@@ -115,7 +115,7 @@ void saveRes(eval &evals, std::string time_dir)
     std::string csvname = time_dir + "/" + evals.method_name + ".csv";
     std::ofstream file(csvname);
     file << "idx,  img1_idx,  img2_idx,  num_pts,  time,  t_err,  R_err, T_GTnorm, rgt_lie\n";
-    evals.average_time /= evals.time.size();
+    evals.average_time /= (double)evals.time.size();
     for (size_t i = 0; i < evals.R_err_per_round.size(); ++i)
     {
         file << i + 1 << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << "," << evals.t_gt_norm[i] << "," << evals.R_gt[i].norm();
