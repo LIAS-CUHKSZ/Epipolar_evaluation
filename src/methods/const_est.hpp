@@ -33,6 +33,8 @@ public:
     Matrix<double, 2, 3> W;
     Vector3d e1, e2, e3;
 
+    bool degenerate_check{false};
+
 private:
     double compute_epipolar_error(const Matrix3d &E, const vector<Vector3d> &y_h, const vector<Vector3d> &z_h)
     {
@@ -76,21 +78,21 @@ private:
 
         Matrix3d E_min1 = es_svd.eigenvectors().real().col(idx_min1).reshaped(3, 3);
         Matrix3d E_min2 = es_svd.eigenvectors().real().col(idx_min2).reshaped(3, 3);
-
-        // Evaluate epipolar error for both E_min1 and E_min2
-        double E_min1_err = compute_epipolar_error(E_min1, y_h, z_h);
-        double E_min2_err = compute_epipolar_error(E_min2, y_h, z_h);
-
-        // Recover R and t from the better E
+        
         cv::Mat essential, intrinsic_cv, R_cv, t_cv;
         eigen2cv(intrinsic, intrinsic_cv);
-        if (5*E_min1_err > E_min2_err) // Threshold to decide which E to use
+        if(degenerate_check)
+        {// Evaluate epipolar error for both E_min1 and E_min2
+        double E_min1_err = compute_epipolar_error(E_min1, y_h, z_h);
+        double E_min2_err = compute_epipolar_error(E_min2, y_h, z_h);
+        if (5 * E_min1_err > E_min2_err) // Threshold to decide which E to use
         {
             // adaptively switch to ransac to avoid selecting faraway & coplanar points
             essential = findEssentialMat(y_p_cv, z_p_cv, intrinsic_cv, cv::LMEDS, 0.999, 1.0); 
             cv2eigen(essential, E_min1);
             std::cout << "singular, use initial R and t" << std::endl;
-        }
+        }}
+
         eigen2cv(E_min1, essential);
         recoverPose(essential, y_p_cv, z_p_cv, intrinsic_cv, R_cv, t_cv);
         cv2eigen(R_cv, R_svd);
@@ -195,7 +197,7 @@ private:
             tt/= residual.size();
             if(maxl>0.01)
             {
-                cout << "Total outliers: " << total  << " total pts:" << m  << " max: " << maxl << endl;
+                cout << "Total outliers: " << total  << " total pts:" << m  << " max: " << " ave res: " << tt << maxl << endl;
             }
             Vector<double, 5> delta = (J.transpose() * J).inverse() * J.transpose() * residual;
 
@@ -240,8 +242,9 @@ public:
      * @param y_h
      * @param z_h
      */
-    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h, vector<Point2d> &ypix, vector<Point2d> &zpix, int iter=1, double tls_threshold = -1.0)
+    void GetPose(Matrix3d &R, Vector3d &t, vector<Vector3d> &y_h, vector<Vector3d> &z_h, vector<Point2d> &ypix, vector<Point2d> &zpix, int iter=1, double tls_threshold = -1.0, bool deg_check = false)
     {
+        degenerate_check = deg_check;
         m = y_h.size();
 
         BiasElimination(y_h, z_h, ypix, zpix);

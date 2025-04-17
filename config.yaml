@@ -1,15 +1,15 @@
 config:
   kitti:
-    t_min: 0.4
-    r_min: 0.008
-    pts_min: 200
-    use_lie: false
+    t_min: 0.5
+    r_min: 0.0
+    pts_min: 100
+    use_lie: true
 
   eth3d:
-    t_min: 0.15
-    r_min: 0.005
-    pts_min: 200
-    use_lie: false
+    t_min: 0.075
+    r_min: 0.0
+    pts_min: 100
+    use_lie: true
 
 # t_min: minimum translation norm required for each pair of image
 # r_min: minimum rotation norm required for each pair of image

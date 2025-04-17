@@ -45,21 +45,21 @@ Eigen::Vector3d unskew(Eigen::Matrix3d M)
 
 struct eval
 {
-    std::string method_name;
+    std::string method_name{""};
     std::vector<double> t_err_per_round;
     std::vector<double> R_err_per_round;
     std::vector<double> E_err_per_round;
     std::vector<double> t_gt_norm;
     std::vector<Eigen::Vector3d> R_gt;
     std::vector<int> num_pts;
-    double total_R_Fn;
-    double total_t_cos;
-    double total_E_Fn;
+    double total_R_Fn{0};
+    double total_t_cos{0};
+    double total_E_Fn{0};
     std::vector<double> noise;
     std::vector<std::pair<std::string, std::string>> img_pair;
     std::vector<double> time;
-    double average_time;
-    eval(std::string name) : method_name(name), total_R_Fn(0), total_t_cos(0) {}
+    double average_time{0};
+    eval(std::string name) : method_name(name){}
 };
 
 void calcEval(Eigen::Vector3d rgt, Eigen::Vector3d tgt, eval &Method, string img_idx1, string img_idx2, double t_err, double r_err, int num, double time_cost, double noise = -1)
@@ -115,7 +115,7 @@ void saveRes(eval &evals, std::string time_dir)
     std::string csvname = time_dir + "/" + evals.method_name + ".csv";
     std::ofstream file(csvname);
     file << "idx,  img1_idx,  img2_idx,  num_pts,  time,  t_err,  R_err, T_GTnorm, rgt_lie\n";
-    evals.average_time /= (double)evals.time.size();
+    evals.average_time /= evals.time.size();
     for (size_t i = 0; i < evals.R_err_per_round.size(); ++i)
     {
         file << i + 1 << "," << evals.img_pair[i].first << "," << evals.img_pair[i].second << "," << evals.num_pts[i] << "," << evals.time[i] << "," << evals.t_err_per_round[i] << "," << evals.R_err_per_round[i] << "," << evals.t_gt_norm[i] << "," << evals.R_gt[i].norm();

@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
   // correspondences.resize(50);
 
   // create a folder under "build" named time(m-d-h-m)-dataset_name
-  string dir_name = getTimeDir("kitti" + sequenceNum + eval_dir);
+  string dir_name = getTimeDir("kitti-" + sequenceNum + "-" + eval_dir);
 
   // accumulate the error
   eval c_est("c_est"), e_m_gn("e_m_gn"), sdp("sdp"), pt5ransac("pt5ransac"),
@@ -189,6 +189,8 @@ int main(int argc, char **argv) {
   int valid_round = 0;
   int progress = correspondences.size();
   int tmp_finish = 0; // for printing progress bar
+
+  long long total_covisible_average = 0;
 
   for (size_t i = 0; i < correspondences.size() && i < gtPoses.size(); ++i) {
     printProg(tmp_finish++, progress);
@@ -223,6 +225,7 @@ int main(int argc, char **argv) {
     pixelToNormalized(z_cv_pix, z_n, K);
 
     int total_covisible = z_n.size();
+    total_covisible_average += total_covisible;
     ++valid_round;
 
     // temp variables to store res
@@ -249,7 +252,7 @@ int main(int argc, char **argv) {
     /* ↓------------------RANSAC-5pt method------------------↓ */
     double ransac_time =
         TIME_IT(E_cv = findEssentialMat(y_cv_pix, z_cv_pix, intrinsic_cv,
-                                        cv::RANSAC, .99, 2.);
+                                        cv::RANSAC, .999, 1.);
                 recoverPose(E_cv, y_cv_pix, z_cv_pix, intrinsic_cv, R_cv, t_cv);
                 cv2eigen(R_cv, R_r5pt); cv2eigen(t_cv, t_r5pt););
     time_elapse = ransac_time;
@@ -263,7 +266,7 @@ int main(int argc, char **argv) {
     /* ↓------------------consistent estimator------------------↓ */
     ConsistentEst est(K);
     time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n,
-                                      y_cv_pix, z_cv_pix, 1, 0.01););
+                                      y_cv_pix, z_cv_pix, 1, 0.008, true););
     calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated,
             t_estimated, use_lie); // Use calcErr
     calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round,
@@ -280,6 +283,7 @@ int main(int argc, char **argv) {
             t_estimated, use_lie); // Use calcErr
     calcEval(R_lie, t_with_scale, egsolver, img1path, img2path,
              t_err_this_round, r_err_this_round, total_covisible, time_elapse);
+
     /* ↑------------------eigensolver estimator------------------↑ */
 
     // lm solver, using 5pt as init value
@@ -404,6 +408,8 @@ int main(int argc, char **argv) {
   file << std::fixed << std::setw(15) << "pt5ransac: " << std::setw(12)
        << pt5ransac.average_time << std::setw(12) << pt5ransac.total_R_Fn
        << std::setw(12) << pt5ransac.total_t_cos << endl;
+  file << "average_covisible: " << (double)total_covisible_average / valid_round
+       << endl;
 
   // if the error of c_est is the smallest of the five methods, print it
   int flag = 0;

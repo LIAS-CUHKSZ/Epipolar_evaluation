@@ -258,7 +258,7 @@ int main(int argc, char **argv) {
 
         /* ↓------------------consistent estimator------------------↓ */
         ConsistentEst est(K);
-        time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix,1););
+        time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n, y_cv_pix, z_cv_pix,1,0.008););
         calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated, t_estimated, use_lie); // Use calcErr
         calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round, r_err_this_round, total_covisible, time_elapse, est.var_est);
         if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)

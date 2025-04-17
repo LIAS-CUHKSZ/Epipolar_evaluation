@@ -60,6 +60,9 @@ target_link_libraries(epipolar_eval eval_lib)
 add_executable(kitti_eval src/kitti_eval.cc src/utils.hpp)
 target_link_libraries(kitti_eval eval_lib)
 
+add_executable(eth3dGN src/eth3d_GN.cc src/utils.hpp)
+target_link_libraries(eth3dGN eval_lib)
+
 # add_executable(kitti_analysis src/kitti_analysis.cc src/utils.hpp)
 # target_link_libraries(kitti_analysis eval_lib)
 

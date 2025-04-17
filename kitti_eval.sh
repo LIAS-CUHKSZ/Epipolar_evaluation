@@ -31,6 +31,9 @@ done
 
 wait
 
+# mv all results to the results folder
+
+
 cd ..
 
 
