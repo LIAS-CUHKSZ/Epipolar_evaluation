@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
       /* ↓------------------consistent estimator------------------↓ */
       ConsistentEst est(cameras[images[img1]->camera_id]->intrinsic);
       time_elapse = TIME_IT(est.GetPose(R_estimated, t_estimated, y_n, z_n,
-                                        y_cv_pix, z_cv_pix, 1, 0.015, true););
+                                        y_cv_pix, z_cv_pix, 1, -1, true););
       calcErr(t_err_this_round, r_err_this_round, R_gt, t_gt, R_estimated,
               t_estimated, use_lie);
       calcEval(R_lie, t_with_scale, c_est, img1path, img2path, t_err_this_round,

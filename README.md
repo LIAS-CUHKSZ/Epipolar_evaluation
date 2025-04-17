@@ -18,21 +18,23 @@ This repository is used for evaluating several state-of-the-art epipolar-geometr
 
   [An Efficient Solution to Non-Minimal Case Essential Matrix Estimation](https://ieeexplore.ieee.org/document/9220804)
 
-- **EigenSolver**：**Optimization of rotation degrees of freedom using eigenvalue optimization** (using the interface of [OpenGV](https://github.com/laurentkneip/opengv)) 
+- **EigenSolver**：**Optimization of rotation degrees of freedom using eigenvalue optimization** (using the interface of [OpenGV](https://github.com/laurentkneip/opengv)). Note that we implement a new method to avoid the translation flip problem in the original paper, which is a common issue in the implementation of this algorithm.
 
   [Direct Optimization of Frame-to-Frame Rotation](https://ieeexplore.ieee.org/document/6751403)
 
-- **LM**：direct optimize the epipolar error, use nonlinear-least square L-M method to minimize the cost. (using the interface of [OpenGV](https://github.com/laurentkneip/opengv)) 
+- **LM**：direct optimize the epipolar error, use nonlinear-least square L-M method to minimize the cost. (using the interface of [OpenGV](https://github.com/laurentkneip/opengv)) Noted that we implement a TLS(truncated least square) method to mitigate the influence of outliers.
 
-- **Consistent_est**：**Global Consistent Optimizer with Bias Elimination** (our method, SOTA!)
+  [Direct Optimization of Frame-to-Frame Rotation](https://ieeexplore.ieee.org/document/6751403)
 
-Among them, the algorithms that require initial values (E_MGN, EigenSolver) use the solution of 5pt-RANSAC as the initial value.
+- ***Consistent_est**：**Global Consistent Optimizer with Bias Elimination** (our method, SOTA!)*
+
+Among them, the algorithms that require initial values (E_MGN, LM, EigenSolver) use the solution of 5pt-RANSAC as the initial value.
 
 The evaluation uses the Multiview dataset from ETH3D, which can be found at: [Datasets - ETH3D](https://www.eth3d.net/datasets#high-res-multi-view). Information about the dataset can be found in the documentation: [Documentation - ETH3D](https://www.eth3d.net/documentation). We have also modified the data loader for convenient data association between any two images. Their source code is available at: [ETH3D/format-loader](https://github.com/ETH3D/format-loader).
 
 We also conduct experiments on KITTI dataset [Visual Odometry / SLAM Evaluation 2012](https://www.cvlibs.net/datasets/kitti/eval_odometry.php). For evaluation on KITTI, we provide many useful tools in `src/kitti_tools` for u convinience.
 
-If you encounter any problems or have any questions while using this repository, use **issue** with detailed nformation if possible. Of course, feel free to contact us via email: [zengqingcheng@cuhk.edu.cn](mailto:zengqingcheng@cuhk.edu.cn,qzeng450@connect.hkust-gz.edu.cn)
+If you encounter any problems or have any questions while using this repository, use **issue** with detailed nformation if possible. Of course, feel free to contact us via email: [zengqingcheng@cuhk.edu.cn](mailto:zengqingcheng@cuhk.edu.cn,qzeng450@connect.hkust-gz.edu.cn) [neozng@foxmail.com](mailto:qzeng450@connect.hkust-gz.edu.cn) 
 
 ## Installation
 
@@ -40,7 +42,7 @@ If you encounter any problems or have any questions while using this repository,
 
 The dependencies of this repository include:
 
-1. **[Eigen3](https://eigen.tuxfamily.org/index.php?title=Main_Page) >= 3.4.0** (support for `reshapre()`)
+1. **[Eigen3](https://eigen.tuxfamily.org/index.php?title=Main_Page) >= 3.4.0** , we need support for `reshapre()`
 2. [SDPA](https://sdpa.sourceforge.net/) (it is hard to install/build! use the one in `src/3rdparty` directly)
 3. [OpenCV](https://github.com/opencv/opencv) >= 4.0
 4. [OpenGV](https://github.com/laurentkneip/opengv) (better to use the one in `src/3rdparty` directly, it's a modified version)
@@ -49,9 +51,11 @@ OpenGV and SDPA need to be compiled from source code, while other dependencies c
 
 > SDPA seems to be installable from the software repository. But we failed the build during linking phase, seems that the NPT-Pose (sdp method) uses some old mumps & sdpa implementation or API. You can try that. However, the `FindSDPA.cmake` used in this repository has been set with a relative path to the compiled lib `src/3rdparty`, so you may need to make some modifications to it (modify FindSDPA.cmake, set the lib to `/usr/include,/usr/lib` etc).
 
-**It is highly recommended to use to lib in `src/3rdparty` instead of downloading yourself. **
+**It is highly recommended to use to lib in `src/3rdparty` instead of downloading yourself.**
 
-> **We modify the EigenSolver implementation in OpenGV, avoid the translation flip problem.**, see `src/relative_pose/methods.cpp`, we use all points for flipping test instead of the first 1.
+use `git submodule update --init --recursive` to download the submodules.
+
+> **We modify the EigenSolver implementation in OpenGV, avoid the translation flip problem.**, see `src/relative_pose/methods.cpp`, we use all points for flipping test instead of the first 1. We also add TLS for LM method.
 
 ## Usage
 
@@ -71,67 +75,26 @@ OpenGV and SDPA need to be compiled from source code, while other dependencies c
 
    All 2D points used for evaluation here have already been undistorted.
 
-2. Modify `CMakeLists.txt`
-
-   ```cmake
-   # you can also add config.cmake of opengv to camke prefix and use find_package(OpenGV REQUIRED)
-   # Set the library path and header directory of OpenGV
-   set(OpenGV_LIBS "D:/Desktop/epipolar_eval/opengv/lib/libopengv.a")
-   include_directories("D:/Desktop/epipolar_eval/opengv/include")
-   
-   # Path to your mumps include folder, for Windows user only
-   # By default, when building SDPA, the mumps lib will be built in the sdpa/mumps/build/lib folder
-   # If you install SDPA from software repo, comment this line
-   # If installing on Windows, you need to compile the SDPA library first and then add the mumps include folder under SDPA here
-   include_directories("D:/Desktop/epipolar_eval/sdpa/mumps/build/include") 
-   ```
-
-   You also need to modify the content of `cmake/FindSDPA.cmake` in the root directory.
-
-   ```cmake
-   set(SDPA_ROOT_DIR "D:/Desktop/epipolar_eval/sdpa")
-   # Modify it to the path of your sdpa root directory
-   ```
-
-   > SDPA is the dependency of npt-pose (E SDP method).
-
-   - **For Windows users**
-
-     Modify the following library paths to the corresponding paths:
-
-     ```cmake
-     find_library(BLAS_LIBRARY libopenblas.a HINTS  "D:/Msys2/mingw64/lib")
-     find_library(FORTRAN_LIBRARY libgfortran.dll.a HINTS "D:/Msys2/mingw64/lib/gcc/x86_64-w64-mingw32/13.1.0")
-     find_library(FORTRAN_LIBRARY2 libquadmath.dll.a	HINTS "D:/Msys2/mingw64/lib")
-     ```
-
-      We recommend installing these libraries through the Msys2 MinGW64 toolchain.
-
-   - **For Linux users**, modify the paths as follows:
-
-     ```cmake
-     # uncomment these three lines
-     find_library(BLAS_LIBRARY libopenblas.a	HINTS "${SDPA_ROOT_DIR}/OpenBLAS")
-     find_library(FORTRAN_LIBRARY libgfortran.so.3 HINTS "/usr/lib/x86_64-linux-gnu/")
-     find_library(FORTRAN_LIBRARY2 libquadmath.so.0	HINTS "/usr/lib/x86_64-linux-gnu/")
-     ```
-
-3. Compile
+2. build opengv and sdpa
 
    ```shell
+   cd src/3rdparty/opengv
    mkdir build
    cd build
    cmake ..
    make -j12
    ```
 
-   We recommend using `Ninja` for faster compilation.
+   ```shell
+   cd src/3rdparty/sdpa-7.3.18
+   mkdir build
+   make -j12
+   ```
 
-4. Run the program with the following command format:
+3. Run the program with the following command format:
 
    ```shell
-   ./epipolar_eval <datasetname>  <img_windows_size> # linux/unix user
-   ./epipolar_eval.exe <datasetname>  <img_windows_size> # windows user
+   ./epipolar_eval <datasetname>  <img_windows_size> 
    ```
 
    `datasetname` is the name of the dataset you want to evaluate, and `img_windows_size` is the interval between two images used for evaluation. If it is set to `2`, only adjacent image pairs will be evaluated; if it is set to `3`, adjacent three images will be evaluated, and so on. When this value is set to `-1`, the program will evaluate all image pairs in the dataset.

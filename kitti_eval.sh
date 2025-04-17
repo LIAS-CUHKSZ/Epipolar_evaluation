@@ -4,7 +4,7 @@
 trap "echo 'Terminating all background tasks...'; kill 0" SIGINT SIGTERM EXIT
 
 # Set max_parallel to the number of logical cores
-max_parallel=$(nproc)
+max_parallel=4 # $(nproc)
 
 datasets=("1_99_sift" "1_99_surf" 
          "2_99_sift" "2.0_99_surf" 
