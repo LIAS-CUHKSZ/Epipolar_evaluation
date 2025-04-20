@@ -5,12 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/home/neo/Epipolar_evaluation/dl/DFE/test.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--dataset=/home/neo/Epipolar_evaluation/dataset/botanical_garden",
+                "--model=/home/neo/Epipolar_evaluation/dl/DFE/models/tanksandtemples_model.pt"
+            ],
+            // use conda env dfme
+            "python": "/home/neo/miniconda3/envs/dfme/bin/python"
+
+
+        },
+        {
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
             "program": "/home/neo/Epipolar_evaluation/build/epipolar_eval",
             "args": [
-                "bridge","2"
+                "bridge",
+                "2"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
