@@ -4,3 +4,6 @@
 [submodule "src/3rdparty/eigen"]
 	path = src/3rdparty/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "dl/DFE"]
+	path = dl/DFE
+	url = https://github.com/NeoZng/DFE

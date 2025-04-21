@@ -39,8 +39,8 @@ Eigen::Matrix3d skew(Eigen::Vector3d a)
 
 Eigen::Vector3d unskew(Eigen::Matrix3d M)
 {
-    Eigen::Matrix3d R_log = M.log().eval();
-    return Eigen::Vector3d(R_log(2, 1), R_log(0, 2), R_log(1, 0));
+    Eigen::AngleAxisd angle_axis(M);
+    return angle_axis.axis() * angle_axis.angle();
 }
 
 struct eval
