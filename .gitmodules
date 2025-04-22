@@ -1,0 +1,12 @@
+[submodule "src/3rdparty/opengv"]
+	path = src/3rdparty/opengv
+	url = https://github.com/NeoZng/opengv
+[submodule "src/3rdparty/eigen"]
+	path = src/3rdparty/eigen
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "dl/DFE"]
+	path = dl/DFE
+	url = https://github.com/NeoZng/DFE
+[submodule "dl/NACNet"]
+	path = dl/NACNet
+	url = https://github.com/NeoZng/NACNet

@@ -9,10 +9,10 @@
 using namespace opengv;
 using namespace Eigen;
 using namespace std;
-class eigenSolverWrapper
+class EigenWrapper
 {
 public:
-    eigenSolverWrapper(vector<Vector3d> &y1, vector<Vector3d> &z1)
+EigenWrapper(vector<Vector3d> &y1, vector<Vector3d> &z1)
     {
         y.resize(y1.size());
         z.resize(z1.size());
@@ -28,10 +28,35 @@ public:
 
         relative_pose::CentralRelativeAdapter adapter(y, z, R_init);
         eigensolverOutput_t output;
-        output.rotation = R_init;
+        output.rotation = R_init.transpose();
         relative_pose::eigensolver(adapter, output);
-        R_est = output.rotation;
-        t_est = output.translation.normalized();
+
+        // --------- use sac ------------
+        // segmentation fault? can't find the reason
+        // sac::Ransac<
+        //     sac_problems::relative_pose::EigensolverSacProblem>
+        //     ransac;
+        // std::shared_ptr<
+        //     sac_problems::relative_pose::EigensolverSacProblem>
+        //     eigenproblem_ptr(
+        //         new sac_problems::relative_pose::EigensolverSacProblem(adapter, 10));
+        // ransac.sac_model_ = eigenproblem_ptr;
+        // ransac.threshold_ = 1.0;
+        // ransac.max_iterations_ = 1000;
+
+        // ransac.computeModel();
+
+        // // do final polishing of the model over all inliers
+        // sac_problems::relative_pose::EigensolverSacProblem::model_t optimizedModel;
+        // eigenproblem_ptr->optimizeModelCoefficients(
+        //     ransac.inliers_,
+        //     ransac.model_coefficients_,
+        //     optimizedModel);
+
+        // R_est = optimizedModel.rotation;
+        // t_est = optimizedModel.translation.normalized();
+        R_est = output.rotation.transpose();
+        t_est = -R_est*output.translation.normalized();
     }
 
 private:

@@ -24,7 +24,7 @@ do
     if [ $count -lt $max_parallel ]
     then
         # Start a new program and increment the count
-        ./MonteCarlo.exe "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_time" & 
+        ./MonteCarlo "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_time" & 
         count=$((count+1))
     else
         # Wait for a program to finish and decrement the count
@@ -32,7 +32,7 @@ do
         count=$((count-1))
 
         # Start a new program and increment the count
-        ./MonteCarlo.exe "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_time" & 
+        ./MonteCarlo "$dataset" "$num" "$imgidx1" "$imgidx2" "$sample_time" & 
         count=$((count+1))
     fi
     # if you want to get a accurate time, please comment the above if-else statement and uncomment the following line
