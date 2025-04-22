@@ -24,9 +24,11 @@ This repository is used for evaluating several state-of-the-art epipolar-geometr
 
 - **LM**：direct optimize the epipolar error, use nonlinear-least square L-M method to minimize the cost. (using the interface of [OpenGV](https://github.com/laurentkneip/opengv)) Noted that we implement a TLS(truncated least square) method to mitigate the influence of outliers.
 
-  [Direct Optimization of Frame-to-Frame Rotation](https://ieeexplore.ieee.org/document/6751403)
 
-- ***Consistent_est**：**Global Consistent Optimizer with Bias Elimination** (our method, SOTA!)*
+- two learning-based method, **[NACNet](https://github.com/drormoran/NACNet)**: Consensus Learning with Deep Sets for
+Essential Matrix Estimation, and **[DFE](https://github.com/isl-org/DFE)**: Deep Fundamental Matrix Estimation
+
+- ***Consistent_est***：**Global Consistent Optimizer with Bias Elimination** (our method, SOTA!)
 
 Among them, the algorithms that require initial values (E_MGN, LM, EigenSolver) use the solution of 5pt-RANSAC as the initial value.
 
