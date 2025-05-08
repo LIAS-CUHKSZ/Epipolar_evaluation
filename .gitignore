@@ -4,3 +4,5 @@ sdpa
 .cache
 result
 output
+log
+.log

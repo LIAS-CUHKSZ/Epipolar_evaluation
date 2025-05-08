@@ -256,7 +256,7 @@ int main(int argc, char **argv) {
                r_err_this_round, total_covisible, time_elapse, est.var_est);
       if ((r_err_this_round > 0.02 || t_err_this_round > 0.01) && debug_img)
         DrawCorreImg(dir_name, img1showpath, img2showpath, y_cv_pix, z_cv_pix,
-                     valid_round, false);
+                     valid_round, false); 
       /* ↑------------------consistent estimator------------------↑ */
 
       /* ↓------------------LMEDS-5pt method------------------↓ */
