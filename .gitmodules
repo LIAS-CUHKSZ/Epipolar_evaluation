@@ -7,6 +7,3 @@
 [submodule "dl/DFE"]
 	path = dl/DFE
 	url = https://github.com/NeoZng/DFE
-[submodule "dl/NACNet"]
-	path = dl/NACNet
-	url = https://github.com/NeoZng/NACNet
