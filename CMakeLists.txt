@@ -10,9 +10,9 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3  REQUIRED)
 find_package(OpenCV  REQUIRED)
 find_package(SDPA  REQUIRED)
-set(opengv_DIR src/3rdparty/opengv/build)
+set(opengv_DIR ${CMAKE_SOURCE_DIR}/src/3rdparty/opengv/build)
 find_package(opengv REQUIRED)
-set(OpenGV_LIBS src/3rdparty/opengv/build/lib/libopengv.so)
+set(OpenGV_LIBS ${CMAKE_SOURCE_DIR}/src/3rdparty/opengv/build/lib/libopengv.so)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 
@@ -27,7 +27,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-add_definitions("-Og -msse2 -msse3 -march=native -std=c++17")
+add_definitions("-O3 -msse2 -msse3 -march=native -std=c++17")
 set( CMAKE_CXX_FLAGS "-march=native -fopenmp" )
 include_directories(
     ./src
@@ -53,15 +53,15 @@ add_library(eval_lib STATIC ${SRCLIST})
 target_link_libraries(eval_lib ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} ${YAML_CPP_LIBRARIES} OpenMP::OpenMP_CXX)
 
 # Executable, eval for epipolar geometry estimation
-add_executable(epipolar_eval src/eval.cc src/utils.hpp)
-target_link_libraries(epipolar_eval eval_lib)
+# add_executable(epipolar_eval src/eval.cc src/utils.hpp)
+# target_link_libraries(epipolar_eval eval_lib)
 
 
-add_executable(kitti_eval src/kitti_eval.cc src/utils.hpp)
-target_link_libraries(kitti_eval eval_lib)
+# add_executable(kitti_eval src/kitti_eval.cc src/utils.hpp)
+# target_link_libraries(kitti_eval eval_lib)
 
-add_executable(eth3dGN src/eth3d_GN.cc src/utils.hpp)
-target_link_libraries(eth3dGN eval_lib)
+# add_executable(eth3dGN src/eth3d_GN.cc src/utils.hpp)
+# target_link_libraries(eth3dGN eval_lib)
 
 # add_executable(kitti_analysis src/kitti_analysis.cc src/utils.hpp)
 # target_link_libraries(kitti_analysis eval_lib)
