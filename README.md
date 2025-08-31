@@ -34,13 +34,13 @@ Among them, the algorithms that require initial values (E_MGN, LM, EigenSolver) 
 
 The evaluation uses the Multiview dataset from ETH3D, which can be found at: [Datasets - ETH3D](https://www.eth3d.net/datasets#high-res-multi-view). Information about the dataset can be found in the documentation: [Documentation - ETH3D](https://www.eth3d.net/documentation). We have also modified the data loader for convenient data association between any two images. Their source code is available at: [ETH3D/format-loader](https://github.com/ETH3D/format-loader).
 
-We also conduct experiments on KITTI dataset [Visual Odometry / SLAM Evaluation 2012](https://www.cvlibs.net/datasets/kitti/eval_odometry.php). For evaluation on KITTI, we provide many useful tools in `src/kitti_tools` for u convinience.
+We also conduct experiments on KITTI dataset [Visual Odometry / SLAM Evaluation 2012](https://www.cvlibs.net/datasets/kitti/eval_odometry.php). For evaluation on KITTI, we provide many useful tools in `src/kitti_tools` for your convenience.
 
 If you encounter any problems or have any questions while using this repository, use **issue** with detailed nformation if possible. Of course, feel free to contact us via email: [zengqingcheng@cuhk.edu.cn](mailto:zengqingcheng@cuhk.edu.cn,qzeng450@connect.hkust-gz.edu.cn) [neozng@foxmail.com](mailto:qzeng450@connect.hkust-gz.edu.cn) 
 
 ## Installation
 
-> The code in this repository has been compiled and tested on Windows using [Msys2-MinGW64](https://www.msys2.org/) and Ubuntu 22.04.
+> The code in this repository has been compiled and tested on Windows using [Msys2-MinGW64](https://www.msys2.org/) ucrt64 and Ubuntu 22.04.
 
 The dependencies of this repository include:
 
@@ -57,7 +57,7 @@ OpenGV and SDPA need to be compiled from source code, while other dependencies c
 
 use `git submodule update --init --recursive` to download the submodules.
 
-> **We modify the EigenSolver implementation in OpenGV, avoid the translation flip problem.**, see `src/relative_pose/methods.cpp`, we use all points for flipping test instead of the first 1. We also add TLS for LM method.
+> **We modify the EigenSolver implementation in OpenGV, avoid the translation flip problem.**, see `src/relative_pose/methods.cpp`, we use all points for flipping test instead of the first 1. We also add TLS for LM method. So make sure to use the modified version in `src/3rdparty/opengv`(submodule)
 
 ## Usage
 
@@ -107,7 +107,7 @@ use `git submodule update --init --recursive` to download the submodules.
 
    ![image-20230702170914362](.assets/image-20230702170914362.png)
 
-6. If you want to continuously evaluate all datasets, we provide script files `evaluate.ps1` (for Windows) and `evaluate.sh` (for Linux/Unix). Running these scripts requires passing two parameters:
+6. If you want to continuously evaluate all datasets, we provide script files `evaluate.sh` (for Linux/Unix). Running these scripts requires passing two parameters:
 
    ```sh
    # The format is <script-name> <img_windows_size> <parallel_task_num>
@@ -125,7 +125,7 @@ use `git submodule update --init --recursive` to download the submodules.
 
 ***Optional*** : If you pass the fourth argument to the executable (can be any value), it will save the image pairs with larger errors. The images will be concatenated, and the corresponding point pairs will be connected with lines. The saved images will have the same path as the evaluation results. If you want to modify this functionality, please refer to the code. 
 
-If you think there is some problem with a specific pair of evaluation, find img idx in `CSV` file, then check imgs yourself. The points may possibly lie in the same plane which can cause degeneration.
+If you think there are some problems with a specific pair of evaluation, find img idx in `CSV` file, then check imgs yourself. The points may possibly lie in the same plane which can cause degeneration.
 
 **In addition,** we found that there are a little bit more outliers (~5%) in low-resolution scenarios when using the dataset(while there are almost no mismatches cases in the high-res ones), which can cause some methods without robust estimation process（like ransac） to fail in these scenarios. If you want to remove their influence for fair comparison, please find below line in `CMakeLists.txt`:
 
@@ -135,9 +135,25 @@ If you think there is some problem with a specific pair of evaluation, find img 
 
 and remove the comment to enable **robust estimation**.
 
+Configuration for minimum trans, rot and correspondences are listed in `config.yaml`.
+
+### KITTI evaluation
+
+We provide `kitti_eval.cc` for evaluating the performance on the KITTI dataset. We only consider consecutive image pairs for evaluation.
+
+The `src/kitti_tools` folder contains many useful tools for loading and processing the KITTI dataset, including loading images, loading ground truth poses,converting poses to relative poses and extracting feature points pair.
+
+To batchly evaluate all sequences with ground truth (seq 0-10), you can use the provided script `kitti_eval.sh`.
+
+Download kitti dataset and unzip it to dataset folder, run `src/kitti_tools/generate_gt_pose_rel.py` to get ground truth poses. Run `src/kitti_tools/get_pts.py` with your favorite feature descriptor to get correspondences. 
+
+Finally, run kitti_eval.sh to evaluate all sequences. 
+
+Configuration for minimum trans, rot and correspondences are listed in `config.yaml`.
+
 ## Evaluate the Consistency
 
-We also provide `m_pts_eval.cc` for evaluating how the performance of the algorithm changes with an increasing number of available matching points. The `CMakeLists.txt` file has already enabled the building of the `MonteCarlo` program by default, which can be disabled if not needed.
+We also provide `m_pts_eval.cc` for evaluating how the performance of the algorithm changes with an increasing number of available matching points (for ETH3D only). The `CMakeLists.txt` file has already enabled the building of the `MonteCarlo` program by default, which can be disabled if not needed.
 
 The program can be used as follows:
 
@@ -184,14 +200,17 @@ The prefix of the image path in `Img1_idx` and `Img2_idx` is the index of the im
 If you use the code from this repository, please cite our paper:
 
 ```
-@misc{zeng2024consistent,
-      title={Consistent and Asymptotically Statistically-Efficient Solution to Camera Motion Estimation}, 
-      author={Guangyang Zeng and Qingcheng Zeng and Xinghan Li and Biqiang Mu and Jiming Chen and Ling Shi and Junfeng Wu},
-      year={2024},
-      eprint={2403.01174},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
-}
+@ARTICLE{11132316,
+  author={Zeng, Guangyang and Zeng, Qingcheng and Li, Xinghan and Mu, Biqiang and Chen, Jiming and Shi, Ling and Wu, Junfeng},
+  journal={IEEE Transactions on Pattern Analysis and Machine Intelligence}, 
+  title={Consistent and Optimal Solution to Camera Motion Estimation}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={1-16},
+  keywords={Translation;Manifolds;Optimization;Noise;Maximum likelihood estimation;Cameras;Vectors;Noise measurement;Estimation;Matrix decomposition;Camera motion estimation;epipolar geometry;essential matrix;maximum likelihood estimation;nonconvex optimization},
+  doi={10.1109/TPAMI.2025.3601430}}
+
 ```
 
 
@@ -213,7 +232,7 @@ If you use the code from this repository, please cite our paper:
 
 评估使用了ETH3D的Multiview数据集，他们的网址是：[Datasets - ETH3D](https://www.eth3d.net/datasets#high-res-multi-view)，关于数据集的说明在：[Documentation - ETH3D](https://www.eth3d.net/documentation)，我们还修改了他们提供的数据读取器以方便地实现任意两张图片上的数据关联，他们的源代码在：[ETH3D/format-loader: Example code for loading the dataset format](https://github.com/ETH3D/format-loader)
 
-若使用时出现问题/有任何疑惑，欢迎在issues中提出，请给出尽可能详细的错误信息。也可以直接通过邮件/qq联系我们： zengqingcheng@cuhk.edu.cn or 1586114053
+若使用时出现问题/有任何疑惑，欢迎在issues中提出，请给出尽可能详细的错误信息。也可以直接通过邮件联系我们： zengqingcheng@cuhk.edu.cn or neozng@foxmail.com
 
 ## 安装
 
@@ -390,13 +409,16 @@ num_pts=(10 20 40 80 160 320 640 1280 2560 4000 -1)
 如果你使用了本仓库的代码，务必引用我们的论文：
 
 ```
-@misc{zeng2024consistent,
-      title={Consistent and Asymptotically Statistically-Efficient Solution to Camera Motion Estimation}, 
-      author={Guangyang Zeng and Qingcheng Zeng and Xinghan Li and Biqiang Mu and Jiming Chen and Ling Shi and Junfeng Wu},
-      year={2024},
-      eprint={2403.01174},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
-}
+@ARTICLE{11132316,
+  author={Zeng, Guangyang and Zeng, Qingcheng and Li, Xinghan and Mu, Biqiang and Chen, Jiming and Shi, Ling and Wu, Junfeng},
+  journal={IEEE Transactions on Pattern Analysis and Machine Intelligence}, 
+  title={Consistent and Optimal Solution to Camera Motion Estimation}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={1-16},
+  keywords={Translation;Manifolds;Optimization;Noise;Maximum likelihood estimation;Cameras;Vectors;Noise measurement;Estimation;Matrix decomposition;Camera motion estimation;epipolar geometry;essential matrix;maximum likelihood estimation;nonconvex optimization},
+  doi={10.1109/TPAMI.2025.3601430}}
+
 ```
 

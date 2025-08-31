@@ -53,15 +53,14 @@ add_library(eval_lib STATIC ${SRCLIST})
 target_link_libraries(eval_lib ${OpenCV_LIBS} ${SDPA_LIBRARIES} ${OpenGV_LIBS} ${YAML_CPP_LIBRARIES} OpenMP::OpenMP_CXX)
 
 # Executable, eval for epipolar geometry estimation
-# add_executable(epipolar_eval src/eval.cc src/utils.hpp)
-# target_link_libraries(epipolar_eval eval_lib)
+add_executable(epipolar_eval src/eval.cc src/utils.hpp)
+target_link_libraries(epipolar_eval eval_lib)
 
+add_executable(kitti_eval src/kitti_eval.cc src/utils.hpp)
+target_link_libraries(kitti_eval eval_lib)
 
-# add_executable(kitti_eval src/kitti_eval.cc src/utils.hpp)
-# target_link_libraries(kitti_eval eval_lib)
-
-# add_executable(eth3dGN src/eth3d_GN.cc src/utils.hpp)
-# target_link_libraries(eth3dGN eval_lib)
+add_executable(eth3dGN src/eth3d_GN.cc src/utils.hpp)
+target_link_libraries(eth3dGN eval_lib)
 
 # add_executable(kitti_analysis src/kitti_analysis.cc src/utils.hpp)
 # target_link_libraries(kitti_analysis eval_lib)
